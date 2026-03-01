@@ -4,10 +4,9 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import text
+from config.extensions import db
 
 load_dotenv(dotenv_path=Path(__file__).with_name(".env"))
-
-db = SQLAlchemy()
 
 print("DB_PORT =", os.getenv("DB_PORT"))
 
