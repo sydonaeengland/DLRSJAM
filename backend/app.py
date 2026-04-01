@@ -1,18 +1,21 @@
 from flask import Flask, jsonify
-from flask_sqlalchemy import SQLAlchemy
-import os
-from pathlib import Path
 from dotenv import load_dotenv
+from pathlib import Path
 from sqlalchemy import text
+import os
+
 from config.extensions import db
 
+# Load environment variables
 load_dotenv(dotenv_path=Path(__file__).with_name(".env"))
 
 print("DB_PORT =", os.getenv("DB_PORT"))
 
+
 def create_app():
     app = Flask(__name__)
 
+    # Database configuration
     app.config["SQLALCHEMY_DATABASE_URI"] = (
         f"postgresql://{os.getenv('DB_USER')}:"
         f"{os.getenv('DB_PASSWORD')}@"
@@ -23,7 +26,10 @@ def create_app():
 
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+    # Initialize extensions
     db.init_app(app)
+
+    # ---------------- ROUTES ---------------- #
 
     @app.route("/health")
     def health():
@@ -34,9 +40,15 @@ def create_app():
         db.session.execute(text("SELECT 1"))
         return jsonify({"database": "connected"})
 
+    # CREATE TABLES AFTER APP EXISTS
+    with app.app_context():
+        import models
+        db.create_all()
+
     return app
 
 
+# Create Flask app
 app = create_app()
 
 if __name__ == "__main__":

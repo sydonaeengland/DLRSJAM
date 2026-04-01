@@ -1,21 +1,20 @@
-# Environment variables
-.env
-backend/.env
+# Python
+__pycache__/
+*.pyc
+*.pyo
 
-# Virtual environments
+# Environments
 venv/
 backend/venv/
 
-# Python cache
-__pycache__/
-*.pyc
+# Env files
+.env
+backend/.env
 
-# Uploads / generated files
+# Uploads
 uploads/
+backend/uploads/
 
-# Local databases
-*.db
-
-# OS files
+# OS junk
 .DS_Store
 Thumbs.db

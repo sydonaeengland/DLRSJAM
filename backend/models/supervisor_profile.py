@@ -1,8 +1,8 @@
 from config.extensions import db
 
 
-class OfficerProfile(db.Model):
-    __tablename__ = "officer_profiles"
+class SupervisorProfile(db.Model):
+    __tablename__ = "supervisor_profiles"
 
     id = db.Column(db.Integer, primary_key=True)
 
@@ -24,4 +24,4 @@ class OfficerProfile(db.Model):
     is_active_staff = db.Column(db.Boolean, default=True)
 
     def __repr__(self):
-        return f"<OfficerProfile {self.firstname} {self.lastname}>"
+        return f"<SupervisorProfile {self.firstname} {self.lastname}>"
