@@ -19,11 +19,11 @@ class DigitalLicence(db.Model):
         nullable=False
     )
 
+    # Photo with background removed
     photo_url = db.Column(db.String(500), nullable=True)
-    file_path = db.Column(db.String(255), nullable=True)
-    expiry_date = db.Column(db.Date, nullable=False)
 
-    issued_at = db.Column(
+    # When DLRSJAM generated this digital licence
+    generated_at = db.Column(
         db.DateTime,
         default=lambda: datetime.now(timezone.utc)
     )
