@@ -33,8 +33,10 @@ class LicenceRecord(db.Model):
     first_issue_date = db.Column(db.Date, nullable=True)
     nationality = db.Column(db.String(50), nullable=True)
 
-    # Only populated if court has stamped penalties
-    judicial_endorsements = db.Column(db.Text, nullable=True)
+    # List of court endorsements — each with date and description
+    # [{"date": "2024-03-15", "description": "Speeding offence"}]
+    # None if no endorsements
+    judicial_endorsements = db.Column(db.JSON, nullable=True)
 
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(timezone.utc))
