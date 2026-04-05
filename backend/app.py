@@ -1,7 +1,7 @@
 from flask import Flask, jsonify
 from dotenv import load_dotenv
 from pathlib import Path
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 import os
 
 from config.extensions import db
@@ -39,6 +39,15 @@ def create_app():
     def db_check():
         db.session.execute(text("SELECT 1"))
         return jsonify({"database": "connected"})
+
+    @app.route("/tables")
+    def tables():
+        inspector = inspect(db.engine)
+        result = {}
+        for table in inspector.get_table_names():
+            columns = [col["name"] for col in inspector.get_columns(table)]
+            result[table] = columns
+        return jsonify(result)
 
     # CREATE TABLES AFTER APP EXISTS
     with app.app_context():
