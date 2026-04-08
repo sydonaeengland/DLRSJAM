@@ -42,9 +42,11 @@ class User(db.Model):
         lazy=True
     )
 
+    # Licence record — only for applicants
+    # NULL for officers, supervisors and admin
     licence_record = db.relationship(
         "LicenceRecord",
-        backref="user_account",
+        back_populates="user",
         uselist=False,
         lazy=True
     )

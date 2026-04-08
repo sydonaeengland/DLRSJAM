@@ -1,3 +1,4 @@
+from .collectorate import Collectorate
 from .user import User
 from .role import Role
 from .user_role import User_role

@@ -48,7 +48,7 @@ class Application(db.Model):
     # ITA (replacement / lost only)
     ita_request_sent_at = db.Column(db.DateTime, nullable=True)
     ita_response_received_at = db.Column(db.DateTime, nullable=True)
-    ita_outcome = db.Column(db.String(20), nullable=True)  # CLEARED / NOT_CLEARED
+    ita_outcome = db.Column(db.String(20), nullable=True)
     ita_reference = db.Column(db.String(50), nullable=True)
 
     # Trustee / proxy collection
@@ -61,8 +61,12 @@ class Application(db.Model):
     payment_confirmed_at = db.Column(db.DateTime, nullable=True)
     fee_amount = db.Column(db.Numeric(10, 2), nullable=True)
 
-    # Pickup
-    pickup_branch = db.Column(db.String(100), nullable=True)
+    # Pickup — FK to collectorates.code
+    pickup_collectorate_code = db.Column(
+        db.String(5),
+        db.ForeignKey("collectorates.code"),
+        nullable=True
+    )
 
     # Escalation
     escalated_to_supervisor_at = db.Column(db.DateTime, nullable=True)
@@ -94,6 +98,11 @@ class Application(db.Model):
         "User",
         foreign_keys=[assigned_officer_id],
         back_populates="assigned_applications"
+    )
+
+    pickup_collectorate = db.relationship(
+        "Collectorate",
+        foreign_keys=[pickup_collectorate_code]
     )
 
     documents = db.relationship(
