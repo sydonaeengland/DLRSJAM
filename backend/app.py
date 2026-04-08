@@ -29,7 +29,22 @@ def create_app():
     # Initialize extensions
     db.init_app(app)
 
-    # ---------------- ROUTES ---------------- #
+    # ── Blueprints ────────────────────────────────────────────────────────
+    from routes.auth import auth_bp
+    from routes.shared import shared_bp
+    from routes.applicant import applicant_bp
+    from routes.officer import officer_bp
+    from routes.supervisor import supervisor_bp
+    from routes.admin import admin_bp
+
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(shared_bp)
+    app.register_blueprint(applicant_bp)
+    app.register_blueprint(officer_bp)
+    app.register_blueprint(supervisor_bp)
+    app.register_blueprint(admin_bp)
+
+    # ── Dev routes ────────────────────────────────────────────────────────
 
     @app.route("/health")
     def health():
@@ -49,26 +64,7 @@ def create_app():
             result[table] = columns
         return jsonify(result)
 
-    @app.route("/api/collectorates")
-    def get_collectorates():
-        from models.collectorate import Collectorate
-        collectorates = Collectorate.query.filter_by(
-            is_active=True
-        ).order_by(Collectorate.code).all()
-        result = [{
-            "code": c.code,
-            "name": c.name,
-            "full": c.full,
-            "parish": c.parish,
-            "address": c.address,
-            "phone": c.phone,
-            "hours": c.hours,
-            "lat": c.lat,
-            "lng": c.lng,
-        } for c in collectorates]
-        return jsonify(result)
-
-    # CREATE TABLES AND SEED
+    # ── Seed ──────────────────────────────────────────────────────────────
     with app.app_context():
         import models
         db.create_all()
