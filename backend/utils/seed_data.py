@@ -7,10 +7,10 @@ from utils.seeds.seed_applications import seed_applications
 
 
 def seed_all():
-    seed_collectorates()   # first — other tables reference it
-    seed_roles()           # second — users need roles
-    seed_staff()           # third — officers needed for applications
-    seed_licences()        # fourth — licence records needed for applicants
-    seed_applicants()      # fifth — users needed for applications
-    seed_applications()    # last — needs everything above
+    seed_collectorates()
+    seed_roles()
+    seed_staff()
+    seed_licences()
+    seed_applicants()
+    seed_applications()
     print("✅ All seed data loaded.")

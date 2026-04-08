@@ -49,10 +49,31 @@ def create_app():
             result[table] = columns
         return jsonify(result)
 
-    # CREATE TABLES AFTER APP EXISTS
+    @app.route("/api/collectorates")
+    def get_collectorates():
+        from models.collectorate import Collectorate
+        collectorates = Collectorate.query.filter_by(
+            is_active=True
+        ).order_by(Collectorate.code).all()
+        result = [{
+            "code": c.code,
+            "name": c.name,
+            "full": c.full,
+            "parish": c.parish,
+            "address": c.address,
+            "phone": c.phone,
+            "hours": c.hours,
+            "lat": c.lat,
+            "lng": c.lng,
+        } for c in collectorates]
+        return jsonify(result)
+
+    # CREATE TABLES AND SEED
     with app.app_context():
         import models
         db.create_all()
+        from utils.seed_data import seed_all
+        seed_all()
 
     return app
 

@@ -6,8 +6,6 @@ from datetime import date
 def seed_licences():
     licence_records = [
         {
-            # Marcus — EXPIRED — Renewal demo
-            # DOB: Mar 15 — expired on birthday Mar 15 2026 (24 days ago)
             "trn": "123456789",
             "control_number": "1234567890",
             "firstname": "Marcus",
@@ -28,8 +26,6 @@ def seed_licences():
             "parish": "ST. ANDREW",
         },
         {
-            # Janet — ACTIVE — Replacement demo
-            # DOB: Jul 22 — expires birthday Jul 22 2028
             "trn": "987654321",
             "control_number": "0987654321",
             "firstname": "Janet",
@@ -50,8 +46,6 @@ def seed_licences():
             "parish": "ST. JAMES",
         },
         {
-            # Trevor — ACTIVE — Amendment demo
-            # DOB: Nov 5 — expires birthday Nov 5 2028
             "trn": "456789123",
             "control_number": "4567891230",
             "firstname": "Trevor",
@@ -72,8 +66,6 @@ def seed_licences():
             "parish": "ST. CATHERINE",
         },
         {
-            # Sandra — EXPIRED — long overdue renewal
-            # DOB: May 30 — expired birthday May 30 2025 (10 months ago)
             "trn": "321654987",
             "control_number": "3216549870",
             "firstname": "Sandra",
@@ -94,8 +86,6 @@ def seed_licences():
             "parish": "ST. ANDREW",
         },
         {
-            # Damion — ACTIVE — expiring in 54 days (cannot renew yet)
-            # DOB: Jun 1 — expires birthday Jun 1 2026
             "trn": "654321098",
             "control_number": "6543210980",
             "firstname": "Damion",
@@ -116,9 +106,6 @@ def seed_licences():
             "parish": "CLARENDON",
         },
         {
-            # Keisha — ACTIVE — expiring in 18 days (CAN renew now)
-            # DOB: Apr 26 — expires birthday Apr 26 2026
-            # Good for "expiring soon" renewal demo
             "trn": "789123456",
             "control_number": "7891234560",
             "firstname": "Keisha",
@@ -140,35 +127,36 @@ def seed_licences():
         },
     ]
 
-    for lr in licence_records:
-        if not LicenceRecord.query.filter_by(trn=lr["trn"]).first():
-            db.session.add(LicenceRecord(
-                trn=lr["trn"],
-                control_number=lr["control_number"],
-                firstname=lr["firstname"],
-                lastname=lr["lastname"],
-                date_of_birth=lr["date_of_birth"],
-                sex=lr["sex"],
-                licence_class=lr["licence_class"],
-                issue_date=lr["issue_date"],
-                first_issue_date=lr["first_issue_date"],
-                expiry_date=lr["expiry_date"],
-                status=lr["status"],
-                collectorate=lr["collectorate"],
-                nationality=lr["nationality"],
-                place_of_birth=lr["place_of_birth"],
-                occupation=lr["occupation"],
-                address_line1=lr["address_line1"],
-                address_line2=lr["address_line2"],
-                parish=lr["parish"],
-                user_id_fk=None
-            ))
+    with db.session.no_autoflush:
+        for lr in licence_records:
+            if not LicenceRecord.query.filter_by(trn=lr["trn"]).first():
+                db.session.add(LicenceRecord(
+                    trn=lr["trn"],
+                    control_number=lr["control_number"],
+                    firstname=lr["firstname"],
+                    lastname=lr["lastname"],
+                    date_of_birth=lr["date_of_birth"],
+                    sex=lr["sex"],
+                    licence_class=lr["licence_class"],
+                    issue_date=lr["issue_date"],
+                    first_issue_date=lr["first_issue_date"],
+                    expiry_date=lr["expiry_date"],
+                    status=lr["status"],
+                    collectorate=lr["collectorate"],
+                    nationality=lr["nationality"],
+                    place_of_birth=lr["place_of_birth"],
+                    occupation=lr["occupation"],
+                    address_line1=lr["address_line1"],
+                    address_line2=lr["address_line2"],
+                    parish=lr["parish"],
+                    user_id_fk=None
+                ))
 
     db.session.commit()
     print("✅ Licence records seeded.")
-    print("   Marcus  TRN:123456789 / Control:1234567890 — EXPIRED  Mar 15 2026")
-    print("   Janet   TRN:987654321 / Control:0987654321 — ACTIVE   Jul 22 2028")
-    print("   Trevor  TRN:456789123 / Control:4567891230 — ACTIVE   Nov  5 2028")
-    print("   Sandra  TRN:321654987 / Control:3216549870 — EXPIRED  May 30 2025")
-    print("   Damion  TRN:654321098 / Control:6543210980 — ACTIVE   Jun  1 2026 (too early)")
-    print("   Keisha  TRN:789123456 / Control:7891234560 — ACTIVE   Apr 26 2026 (renew now)")
+    print("   Marcus  TRN:123456789 — EXPIRED  Mar 15 2026")
+    print("   Janet   TRN:987654321 — ACTIVE   Jul 22 2028")
+    print("   Trevor  TRN:456789123 — ACTIVE   Nov  5 2028")
+    print("   Sandra  TRN:321654987 — EXPIRED  May 30 2025")
+    print("   Damion  TRN:654321098 — ACTIVE   Jun  1 2026 (too early to renew)")
+    print("   Keisha  TRN:789123456 — ACTIVE   Apr 26 2026 (can renew now)")

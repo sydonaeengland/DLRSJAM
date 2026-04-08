@@ -248,19 +248,20 @@ COLLECTORATE_DATA = [
 
 
 def seed_collectorates():
-    for c in COLLECTORATE_DATA:
-        if not Collectorate.query.filter_by(code=c["code"]).first():
-            db.session.add(Collectorate(
-                code=c["code"],
-                name=c["name"],
-                full=f"{c['code']} {c['name']}",
-                parish=c["parish"],
-                address=c["address"],
-                phone=c["phone"],
-                hours=c["hours"],
-                lat=c["lat"],
-                lng=c["lng"],
-                is_active=True
-            ))
+    with db.session.no_autoflush:
+        for c in COLLECTORATE_DATA:
+            if not Collectorate.query.filter_by(code=c["code"]).first():
+                db.session.add(Collectorate(
+                    code=c["code"],
+                    name=c["name"],
+                    full=f"{c['code']} {c['name']}",
+                    parish=c["parish"],
+                    address=c["address"],
+                    phone=c["phone"],
+                    hours=c["hours"],
+                    lat=c["lat"],
+                    lng=c["lng"],
+                    is_active=True
+                ))
     db.session.commit()
     print(f"✅ Seeded {len(COLLECTORATE_DATA)} collectorates.")
