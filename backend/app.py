@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from dotenv import load_dotenv
 from pathlib import Path
 from sqlalchemy import text, inspect
+from flask_cors import CORS
 import os
 
 from config.extensions import db
@@ -28,6 +29,7 @@ def create_app():
 
     # Initialize extensions
     db.init_app(app)
+    CORS(app, origins=["http://localhost:5173"])
 
     # ── Blueprints ────────────────────────────────────────────────────────
     from routes.auth import auth_bp

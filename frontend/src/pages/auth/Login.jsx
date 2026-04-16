@@ -1,113 +1,145 @@
-import { useState } from "react"
-import axios from "axios"
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { login as loginService } from "../../services/authService";
+import coatOfArms from "../../assets/coat-of-arms.png";
+import lobbyImg from "../../assets/slides/lobby.webp";
+import drivingImg from "../../assets/slides/driving.webp";
+import licenceKeysImg from "../../assets/slides/licence-keys.webp";
+import { BRAND } from "../../config/theme";
+import LeftPanel from "../../components/auth/LeftPanel";
+import AuthInput from "../../components/auth/AuthInput";
+import AuthButton from "../../components/auth/AuthButton";
+import AuthError from "../../components/auth/AuthError";
+
+const SLIDES = [
+  { image: lobbyImg, headline: "Your licence.\nHandled.", subtext: "Skip the queue. Renew online from anywhere in Jamaica." },
+  { image: drivingImg, headline: "Stay on\nthe road.", subtext: "Fast, secure driver's licence renewals — no office visit required." },
+  { image: licenceKeysImg, headline: "Everything\nin one place.", subtext: "Renewals, replacements, and amendments. All online, all official." },
+];
 
 export default function Login() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [fading, setFading] = useState(false);
+  const [visible, setVisible] = useState(false);
 
-  const handleLogin = async (e) => {
-    e.preventDefault()
-    setError("")
-    setLoading(true)
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 30);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setFading(true);
+      setTimeout(() => { setCurrent((p) => (p + 1) % SLIDES.length); setFading(false); }, 600);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const goToSlide = (i) => {
+    if (i === current) return;
+    setFading(true);
+    setTimeout(() => { setCurrent(i); setFading(false); }, 600);
+  };
+
+  const handleChange = (e) => {
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    if (error) setError("");
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.email || !form.password) { setError("Please fill in all fields."); return; }
+    setLoading(true);
     try {
-      const res = await axios.post("http://127.0.0.1:5000/api/auth/login", {
-        email,
-        password,
-      })
-
-      // Store token and user info
-      localStorage.setItem("token", res.data.token)
-      localStorage.setItem("user", JSON.stringify(res.data.user))
-
-      // Redirect based on role
-      const role = res.data.user.role
-      if (role === "officer") window.location.href = "/officer"
-      else if (role === "supervisor") window.location.href = "/supervisor"
-      else if (role === "admin") window.location.href = "/admin"
-      else window.location.href = "/dashboard"
-
+      const data = await loginService(form.email, form.password);
+      login(data.user, data.token);
+      navigate("/dashboard");
     } catch (err) {
-      setError(err.response?.data?.error || "Invalid email or password")
+      setError(err?.response?.data?.error || "Invalid email or password.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
-      <div className="bg-white rounded-2xl shadow-lg w-full max-w-md p-8">
+    <div
+      className="flex"
+      style={{ height: "100dvh", overflow: "hidden", opacity: visible ? 1 : 0, transition: "opacity 0.5s ease" }}
+    >
+      <LeftPanel slides={SLIDES} current={current} fading={fading} goToSlide={goToSlide} />
 
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="text-xs tracking-widest text-blue-900 font-bold mb-1">
-            GOVERNMENT OF JAMAICA
+      <div className="flex-1 flex items-center justify-center px-8 bg-white" style={{ overflow: "hidden" }}>
+        <div
+          className="w-full max-w-[400px]"
+          style={{
+            opacity: visible ? 1 : 0,
+            transform: visible ? "translateY(0)" : "translateY(16px)",
+            transition: "opacity 0.5s ease 0.1s, transform 0.5s ease 0.1s",
+          }}
+        >
+          {/* Mobile branding */}
+          <div className="flex items-center gap-2 mb-8 lg:hidden">
+            <img src={coatOfArms} alt="" className="w-8 h-8 object-contain" />
+            <span className="text-sm font-semibold text-gray-700">Tax Administration Jamaica</span>
           </div>
-          <div className="text-xs tracking-widest text-gray-500 mb-4">
-            TAX ADMINISTRATION JAMAICA
-          </div>
-          <h1 className="text-2xl font-bold text-blue-900">DLRSJAM</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Driver's Licence Renewal System
-          </p>
-        </div>
 
-        {/* Form */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email Address
-            </label>
-            <input
+          <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase mb-1">Welcome back</p>
+          <h2 className="text-2xl font-bold text-gray-900 leading-tight">
+            Sign in to <span style={{ color: BRAND.primary }}>DLRSJAM</span>
+          </h2>
+          <p className="text-sm text-gray-400 mt-1 mb-6">Your driver's licence portal.</p>
+
+          <AuthError message={error} />
+
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <AuthInput
+              label="Email address"
+              name="email"
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter your email"
+              autoComplete="email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="you@example.com"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <input
+            <AuthInput
+              label="Password"
+              name="password"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter your password"
+              autoComplete="current-password"
+              value={form.password}
+              onChange={handleChange}
+              placeholder="••••••••"
+              right={
+                <Link to="/forgot-password" className="text-xs font-medium hover:underline" style={{ color: BRAND.primary }}>
+                  Forgot password?
+                </Link>
+              }
             />
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-4 py-2.5">
-              {error}
+            <div className="pt-1">
+              <AuthButton loading={loading} loadingText="Signing in…">Sign in</AuthButton>
             </div>
-          )}
+          </form>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-900 text-white font-semibold py-2.5 rounded-lg text-sm tracking-wide hover:bg-blue-800 transition disabled:opacity-50"
-          >
-            {loading ? "Signing in..." : "Sign In"}
-          </button>
-        </form>
+          <p className="mt-5 text-center text-sm text-gray-400">
+            Don't have an account?{" "}
+            <Link to="/register" className="font-semibold hover:underline" style={{ color: BRAND.primary }}>Create one</Link>
+          </p>
 
-        {/* Register link — applicants only */}
-        <p className="text-center text-sm text-gray-500 mt-6">
-          New applicant?{" "}
-          <a href="/register" className="text-blue-700 font-medium hover:underline">
-            Create an account
-          </a>
-        </p>
-
+          <div className="mt-6 pt-5 border-t border-gray-100 text-center">
+            <p className="text-xs text-gray-400">
+              TAJ staff?{" "}
+              <Link to="/staff/login" className="text-gray-500 hover:underline font-medium">Staff login →</Link>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
-  )
+  );
 }

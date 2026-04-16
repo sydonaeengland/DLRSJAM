@@ -26,9 +26,10 @@ class Application(db.Model):
 
     # LOST / DAMAGED (replacement only)
     replacement_reason = db.Column(db.String(30), nullable=True)
-
+    
     # DRAFT / SUBMITTED / UNDER_REVIEW / PENDING_ITA /
-    # ACTION_REQUIRED / RESUBMITTED / APPROVED / REJECTED
+    # # ACTION_REQUIRED / WAITING_ON_APPLICANT / RESUBMITTED / 
+    # ESCALATED / APPROVED / REJECTED
     status = db.Column(db.String(30), nullable=False, default="DRAFT")
 
     submitted_at = db.Column(db.DateTime, nullable=True)
