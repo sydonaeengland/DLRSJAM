@@ -10,10 +10,16 @@ import string
 
 def generate_app_number():
     suffix = ''.join(random.choices(string.digits, k=6))
-    return f"APP-2026-{suffix}"
+    return f"DL-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{suffix}"
 
 
 def seed_applications():
+    
+    ApplicationEvent.query.delete()
+    Document.query.delete()
+    Application.query.delete()
+    db.session.commit()
+    
     marcus  = User.query.filter_by(email="marcus.campbell@email.com").first()
     janet   = User.query.filter_by(email="janet.reid@email.com").first()
     trevor  = User.query.filter_by(email="trevor.brown@email.com").first()

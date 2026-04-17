@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider } from "./context/AuthContext"
+import { ApplicationProvider } from "./context/ApplicationContext"
 import ProtectedRoute from "./components/auth/ProtectedRoute"
 
 // Auth
@@ -10,58 +11,103 @@ import AdminLogin from "./pages/auth/AdminLogin"
 
 // Applicant
 import Dashboard from "./pages/applicant/Dashboard"
+import ApplicationRouter from "./pages/applicant/ApplicationRouter"
 
-// Officer
-// import OfficerDashboard from "./pages/officer/OfficerDashboard"
-
-// Supervisor
-// import SupervisorDashboard from "./pages/supervisor/SupervisorDashboard"
-
-// Admin
-// import AdminDashboard from "./pages/admin/AdminDashboard"
+// Apply flow
+import TransactionSelection from "./pages/applicant/apply/TransactionSelection"
+import RetrieveRecord from "./pages/applicant/apply/RetrieveRecord"
+import SupportingChanges from "./pages/applicant/apply/SupportingChanges"
+import ConfirmTransaction from "./pages/applicant/apply/ConfirmTransaction"
+import DocumentUpload from "./pages/applicant/apply/DocumentUpload"
+import Verification from "./pages/applicant/apply/Verification"
+import Review from "./pages/applicant/apply/Review"
+import Declaration from "./pages/applicant/apply/Declaration"
+import Payment from "./pages/applicant/apply/Payment"
+import Success from "./pages/applicant/apply/Success"
 
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Navigate to="/login" />} />
+      <ApplicationProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Navigate to="/login" />} />
 
-          {/* Auth */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/staff/login" element={<StaffLogin />} />
-          <Route path="/admin/login" element={<AdminLogin />} />
+            {/* Auth */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/staff/login" element={<StaffLogin />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
 
-          {/* Applicant */}
-          <Route path="/dashboard" element={
-            <ProtectedRoute role="applicant">
-              <Dashboard />
-            </ProtectedRoute>
-          } />
+            {/* Applicant Dashboard */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute role="applicant">
+                <Dashboard />
+              </ProtectedRoute>
+            } />
 
-          {/* Officer — uncomment as you build */}
-          {/* <Route path="/officer" element={
-            <ProtectedRoute role="officer">
-              <OfficerDashboard />
-            </ProtectedRoute>
-          } /> */}
+            {/* Application router — resumes draft or shows detail */}
+            <Route path="/applications/:id" element={
+              <ProtectedRoute role="applicant">
+                <ApplicationRouter />
+              </ProtectedRoute>
+            } />
 
-          {/* Supervisor — uncomment as you build */}
-          {/* <Route path="/supervisor" element={
-            <ProtectedRoute role="supervisor">
-              <SupervisorDashboard />
-            </ProtectedRoute>
-          } /> */}
+            {/* Application Flow */}
+            <Route path="/apply" element={
+              <ProtectedRoute role="applicant">
+                <TransactionSelection />
+              </ProtectedRoute>
+            } />
+            <Route path="/apply/retrieve-record" element={
+              <ProtectedRoute role="applicant">
+                <RetrieveRecord />
+              </ProtectedRoute>
+            } />
+            <Route path="/apply/supporting-changes" element={
+              <ProtectedRoute role="applicant">
+                <SupportingChanges />
+              </ProtectedRoute>
+            } />
+            <Route path="/apply/confirm-transaction" element={
+              <ProtectedRoute role="applicant">
+                <ConfirmTransaction />
+              </ProtectedRoute>
+            } />
+            <Route path="/apply/document-upload" element={
+              <ProtectedRoute role="applicant">
+                <DocumentUpload />
+              </ProtectedRoute>
+            } />
+            <Route path="/apply/verification" element={
+              <ProtectedRoute role="applicant">
+                <Verification />
+              </ProtectedRoute>
+            } />
+            <Route path="/apply/review" element={
+              <ProtectedRoute role="applicant">
+                <Review />
+              </ProtectedRoute>
+            } />
+            <Route path="/apply/declaration" element={
+              <ProtectedRoute role="applicant">
+                <Declaration />
+              </ProtectedRoute>
+            } />
+            <Route path="/apply/payment" element={
+              <ProtectedRoute role="applicant">
+                <Payment />
+              </ProtectedRoute>
+            } />
+            <Route path="/apply/success" element={
+              <ProtectedRoute role="applicant">
+                <Success />
+              </ProtectedRoute>
+            } />
 
-          {/* Admin — uncomment as you build */}
-          {/* <Route path="/admin" element={
-            <ProtectedRoute role="admin">
-              <AdminDashboard />
-            </ProtectedRoute>
-          } /> */}
-        </Routes>
-      </BrowserRouter>
+          </Routes>
+        </BrowserRouter>
+      </ApplicationProvider>
     </AuthProvider>
   )
 }

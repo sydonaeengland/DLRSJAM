@@ -42,6 +42,12 @@ class Document(db.Model):
     file_path = db.Column(db.String(255), nullable=False)
     original_filename = db.Column(db.String(255), nullable=True)
 
+    # AI quality check — runs automatically on upload
+    ai_check_passed = db.Column(db.Boolean, nullable=True)
+    ai_check_score = db.Column(db.Integer, nullable=True)
+    ai_check_comment = db.Column(db.Text, nullable=True)
+
+    # Officer review — set manually by officer
     # PENDING / APPROVED / RESUBMIT_REQUIRED / REJECTED
     review_status = db.Column(db.String(30), default="PENDING")
     review_comment = db.Column(db.Text, nullable=True)

@@ -10,6 +10,7 @@ backend/venv/
 # Env files
 .env
 backend/.env
+frontend/.env
 
 # Uploads
 uploads/
