@@ -11,7 +11,9 @@ import AdminLogin from "./pages/auth/AdminLogin"
 
 // Applicant
 import Dashboard from "./pages/applicant/Dashboard"
+import MyApplications from "./pages/applicant/applications/MyApplications";
 import ApplicationRouter from "./pages/applicant/ApplicationRouter"
+import ViewApplication from "./pages/applicant/applications/ViewApplication"
 
 // Apply flow
 import TransactionSelection from "./pages/applicant/apply/TransactionSelection"
@@ -46,10 +48,20 @@ function App() {
               </ProtectedRoute>
             } />
 
-            {/* Application router — resumes draft or shows detail */}
+            {/* Application router — resumes draft or redirects to view */}
             <Route path="/applications/:id" element={
               <ProtectedRoute role="applicant">
                 <ApplicationRouter />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/applications" element={<MyApplications />} />
+
+
+            {/* View application detail */}
+            <Route path="/applications/:id/view" element={
+              <ProtectedRoute role="applicant">
+                <ViewApplication />
               </ProtectedRoute>
             } />
 

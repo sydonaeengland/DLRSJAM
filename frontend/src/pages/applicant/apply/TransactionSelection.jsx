@@ -1,12 +1,17 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import StepLayout from "../../../components/layout/StepLayout";
-import StepCard from "../../../components/apply/StepCard";
 import StepNav from "../../../components/apply/StepNav";
 import InfoBanner from "../../../components/apply/InfoBanner";
 import { useAppState } from "../../../context/ApplicationContext";
 import { BRAND } from "../../../config/theme";
 import api from "../../../services/api";
+
+const TX_LABELS = {
+  RENEWAL:     "Licence Renewal",
+  REPLACEMENT: "Licence Replacement",
+  AMENDMENT:   "Licence Amendment",
+};
 
 const TRANSACTIONS = [
   {
@@ -67,84 +72,88 @@ export default function TransactionSelection() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { state, update } = useAppState();
-  const [selected, setSelected] = useState(state.transactionType || null);
-  const [hovered, setHovered] = useState(null);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState("");
-  const [resuming, setResuming] = useState(false);
 
-  // Handle resume from dashboard
+  const [selected,    setSelected]    = useState(state.transactionType || null);
+  const [hovered,     setHovered]     = useState(null);
+  const [creating,    setCreating]    = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [existingApp, setExistingApp] = useState(null); // { id, number, type }
+  const [resuming,    setResuming]    = useState(false);
+
   useEffect(() => {
-    const resumeId = searchParams.get("resume");
+    const resumeId  = searchParams.get("resume");
     const typeParam = searchParams.get("type");
 
     if (resumeId) {
-        setResuming(true);
-        api.get("/api/applicant/applications")
-            .then((res) => {
-            const apps = res.data.applications ?? [];
-            const draft = apps.find((a) => a.id === parseInt(resumeId));
-            if (draft) {
-                // Pull full draft details
-                return api.get(`/api/applicant/applications/${draft.id}`)
-                .then((detailRes) => {
-                    const d = detailRes.data;
-                    update({
-                    applicationId: d.id,
-                    applicationNumber: d.application_number,
-                    transactionType: d.transaction_type,
-                    replacementReason: d.replacement_reason || null,
-                    addressChangeRequested: d.address_change_requested || false,
-                    newAddressLine1: d.new_address_line1 || "",
-                    newAddressLine2: d.new_address_line2 || "",
-                    newParish: d.new_parish || "",
-                    trusteeCollection: d.trustee_collection || false,
-                    trusteeName: d.trustee_name || "",
-                    trusteeContact: d.trustee_contact || "",
-                    pickupCollectorateCode: d.pickup_collectorate_code || "",
-                    feeAmount: d.fee_amount || null,
-                    });
-                    navigate("/apply/retrieve-record");
+      setResuming(true);
+      api.get("/api/applicant/applications")
+        .then((res) => {
+          const apps = res.data.applications ?? [];
+          const draft = apps.find((a) => a.id === parseInt(resumeId));
+          if (draft) {
+            return api.get(`/api/applicant/applications/${draft.id}`)
+              .then((detailRes) => {
+                const d = detailRes.data;
+                update({
+                  applicationId:          d.id,
+                  applicationNumber:      d.application_number,
+                  transactionType:        d.transaction_type,
+                  replacementReason:      d.replacement_reason      || null,
+                  addressChangeRequested: d.address_change_requested || false,
+                  newAddressLine1:        d.new_address_line1        || "",
+                  newAddressLine2:        d.new_address_line2        || "",
+                  newParish:              d.new_parish               || "",
+                  trusteeCollection:      d.trustee_collection       || false,
+                  trusteeName:            d.trustee_name             || "",
+                  trusteeContact:         d.trustee_contact          || "",
+                  pickupCollectorateCode: d.pickup_collectorate_code || "",
+                  feeAmount:              d.fee_amount               || null,
                 });
-            } else {
-                setResuming(false);
-            }
-            })
-            .catch(() => setResuming(false));
-        }
+                navigate("/apply/retrieve-record");
+              });
+          } else {
+            setResuming(false);
+          }
+        })
+        .catch(() => setResuming(false));
+    }
 
     if (typeParam) {
       const t = typeParam.toUpperCase();
-      if (["RENEWAL", "REPLACEMENT", "AMENDMENT"].includes(t)) {
-        setSelected(t);
-      }
+      if (["RENEWAL", "REPLACEMENT", "AMENDMENT"].includes(t)) setSelected(t);
     }
   }, []);
+
+  // Clear the duplicate block if user changes selection
+  const handleSelect = (id) => {
+    setSelected(id);
+    setExistingApp(null);
+    setCreateError("");
+  };
 
   const handleContinue = async () => {
     if (!selected) return;
     setCreating(true);
     setCreateError("");
+    setExistingApp(null);
     try {
       const res = await api.post("/api/applicant/applications", {
         transaction_type: selected,
       });
       update({
-        transactionType: selected,
-        applicationId: res.data.id,
+        transactionType:   selected,
+        applicationId:     res.data.id,
         applicationNumber: res.data.application_number,
       });
       navigate("/apply/retrieve-record");
     } catch (err) {
-      const existingId = err.response?.data?.existing_application_id;
-      const existingNumber = err.response?.data?.existing_application_number;
-      if (existingId) {
-        update({
-          transactionType: selected,
-          applicationId: existingId,
-          applicationNumber: existingNumber,
+      if (err.response?.status === 409) {
+        // Duplicate — block and show info
+        setExistingApp({
+          id:     err.response.data.existing_application_id,
+          number: err.response.data.existing_application_number,
+          type:   selected,
         });
-        navigate("/apply/retrieve-record");
       } else {
         setCreateError(err.response?.data?.error || "Could not create application. Please try again.");
       }
@@ -170,31 +179,41 @@ export default function TransactionSelection() {
   return (
     <StepLayout currentStep={0}>
       <div style={{ marginBottom: "28px" }}>
-        <p style={{ fontSize: "12px", fontWeight: "700", color: BRAND.primary, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>Step 1 of 9</p>
-        <h1 style={{ fontSize: "26px", fontWeight: "800", color: "#1b1c1c", margin: "0 0 6px", letterSpacing: "-0.4px" }}>Select Transaction Type</h1>
-        <p style={{ fontSize: "15px", color: "#64748b", margin: 0 }}>Choose the transaction you would like to complete.</p>
+        <p style={{ fontSize: "12px", fontWeight: "700", color: BRAND.primary, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>
+          Step 1 of 9
+        </p>
+        <h1 style={{ fontSize: "26px", fontWeight: "800", color: "#1b1c1c", margin: "0 0 6px", letterSpacing: "-0.4px" }}>
+          Select Transaction Type
+        </h1>
+        <p style={{ fontSize: "15px", color: "#64748b", margin: 0 }}>
+          Choose the transaction you would like to complete.
+        </p>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "24px" }}>
         {TRANSACTIONS.map((t) => {
           const isSelected = selected === t.id;
-          const isHovered = hovered === t.id;
+          const isHovered  = hovered === t.id;
           return (
             <button
               key={t.id}
-              onClick={() => setSelected(t.id)}
+              onClick={() => handleSelect(t.id)}
               onMouseEnter={() => setHovered(t.id)}
               onMouseLeave={() => setHovered(null)}
               style={{
                 textAlign: "left", background: "white", borderRadius: "14px", padding: "22px",
                 border: `2px solid ${isSelected ? BRAND.primary : isHovered ? "#cbd5e1" : "#e9e8e7"}`,
-                boxShadow: isSelected ? `0 0 0 3px ${BRAND.primary}22` : isHovered ? "0 4px 16px rgba(0,0,0,0.08)" : "0 1px 3px rgba(0,0,0,0.04)",
+                boxShadow: isSelected
+                  ? `0 0 0 3px ${BRAND.primary}22`
+                  : isHovered ? "0 4px 16px rgba(0,0,0,0.08)" : "0 1px 3px rgba(0,0,0,0.04)",
                 cursor: "pointer", transition: "all 0.15s", position: "relative",
               }}
             >
               {isSelected && (
                 <div style={{ position: "absolute", top: "14px", right: "14px", width: "20px", height: "20px", borderRadius: "50%", background: BRAND.primary, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
                 </div>
               )}
 
@@ -229,6 +248,43 @@ export default function TransactionSelection() {
 
       <InfoBanner type="info" message="Make sure your TRN details are up to date before proceeding. Name changes take up to 48 hours to sync from the TRN system." />
 
+      {/* ── Duplicate block ── */}
+      {existingApp && (
+        <div style={{ marginTop: "16px", background: "#fefce8", border: "1.5px solid #fde047", borderRadius: "12px", padding: "18px 20px" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "#fef08a", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2.5" strokeLinecap="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: "14px", fontWeight: "800", color: "#78350f", margin: "0 0 4px" }}>
+                You already have an active {TX_LABELS[existingApp.type]}
+              </p>
+              <p style={{ fontSize: "13px", color: "#92400e", margin: "0 0 14px", lineHeight: 1.6 }}>
+                Application <strong style={{ fontFamily: "monospace" }}>{existingApp.number}</strong> is currently in progress.
+                You cannot start a new {TX_LABELS[existingApp.type].toLowerCase()} until the existing one is completed or cancelled.
+              </p>
+              <button
+                onClick={() => navigate(`/applications/${existingApp.id}`)}
+                style={{
+                  padding: "9px 20px", borderRadius: "8px", border: "none",
+                  background: "#d97706", color: "white",
+                  fontSize: "13px", fontWeight: "700", cursor: "pointer",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#b45309"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "#d97706"}
+              >
+                View Existing Application →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Generic error ── */}
       {createError && (
         <div style={{ marginTop: "16px" }}>
           <InfoBanner type="error" message={createError} />
@@ -239,7 +295,7 @@ export default function TransactionSelection() {
         onBack={() => navigate("/dashboard")}
         backLabel="Back to Dashboard"
         onContinue={handleContinue}
-        continueDisabled={!selected || creating}
+        continueDisabled={!selected || creating || !!existingApp}
         loading={creating}
         continueLabel="Continue"
       />

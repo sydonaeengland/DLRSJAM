@@ -8,17 +8,13 @@ import { BRAND } from "../../config/theme";
 function getResumeRoute(app) {
   switch (app.status) {
     case "DRAFT":
-      // Figure out how far they got based on what data exists
-      if (app.payment_reference) return "/apply/success";
-      if (app.declaration)        return "/apply/payment";
-      if (app.fee_amount)         return "/apply/declaration";
-      // Default draft entry point
+      if (app.payment_reference) return `/applications/${app.id}/view`;
+      if (app.declaration)       return "/apply/payment";
+      if (app.fee_amount)        return "/apply/declaration";
       return "/apply/retrieve-record";
-    case "ACTION_REQUIRED":
-    case "WAITING_ON_APPLICANT":
-      return "/apply/retrieve-record"; // resubmission flow — TBD
     default:
-      return "/dashboard"; // SUBMITTED, APPROVED, REJECTED etc — no resume
+      // SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, PENDING_ITA, ESCALATED, etc.
+      return `/applications/${app.id}/view`;
   }
 }
 

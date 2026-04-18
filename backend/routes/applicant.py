@@ -480,3 +480,129 @@ def get_latest_digital_licence(user):
             "application_id": dl.application_fk,
         }
     }), 200
+
+
+# ── Stripe Payment ────────────────────────────────────────────────────────────
+
+def calculate_fee(app):
+    transaction = app.transaction_type
+    replacement_reason = app.replacement_reason or ""
+
+    # Look up licence record via user
+    licence_record = LicenceRecord.query.filter_by(user_id_fk=app.user_id_fk).first()
+    licence_class = licence_record.licence_class if licence_record else "B"
+
+    RENEWAL_B = 540000   # $5,400 JMD in cents
+    RENEWAL_C = 720000   # $7,200 JMD in cents
+    AMENDMENT = 414000   # $4,140 JMD in cents
+    ITA_FEE   = 300000   # $3,000 JMD in cents
+
+    renewal_fee = RENEWAL_C if licence_class == "C" else RENEWAL_B
+
+    if transaction == "RENEWAL":
+        return renewal_fee
+    if transaction == "AMENDMENT":
+        return AMENDMENT
+    if transaction == "REPLACEMENT":
+        if replacement_reason.upper() == "DAMAGED":
+            return renewal_fee
+        if licence_record and licence_record.expiry_date:
+            if licence_record.expiry_date < date.today():
+                return ITA_FEE + renewal_fee
+        return ITA_FEE
+    return renewal_fee
+
+
+@applicant_bp.route("/applications/<int:app_id>/create-payment-intent", methods=["POST"])
+@require_applicant
+def create_payment_intent(user, app_id):
+    import stripe
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
+    app = Application.query.filter_by(id=app_id, user_id_fk=user.id).first()
+    if not app:
+        return jsonify({"error": "Application not found"}), 404
+
+    amount_cents = calculate_fee(app)
+
+    try:
+        intent = stripe.PaymentIntent.create(
+            amount=amount_cents,
+            currency="jmd",
+            metadata={
+                "application_id": app.id,
+                "application_number": app.application_number,
+                "user_id": user.id,
+                "transaction_type": app.transaction_type,
+            },
+            description=f"DLRSJAM — {app.transaction_type} — {app.application_number}",
+        )
+
+        app.fee_amount = amount_cents / 100
+        db.session.commit()
+
+        return jsonify({
+            "client_secret": intent.client_secret,
+            "amount": amount_cents,
+            "amount_display": f"${amount_cents / 100:,.2f}",
+            "currency": "JMD",
+            "payment_intent_id": intent.id,
+        }), 200
+
+    except stripe.error.StripeError as e:
+        return jsonify({"error": str(e.user_message)}), 400
+
+
+@applicant_bp.route("/applications/<int:app_id>/confirm-payment", methods=["POST"])
+@require_applicant
+def confirm_payment(user, app_id):
+    import stripe
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
+    app = Application.query.filter_by(id=app_id, user_id_fk=user.id).first()
+    if not app:
+        return jsonify({"error": "Application not found"}), 404
+
+    data = request.get_json()
+    payment_intent_id = data.get("payment_intent_id")
+
+    try:
+        intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        if intent.status != "succeeded":
+            return jsonify({"error": "Payment not completed"}), 400
+
+        from models.payment import Payment
+        payment = Payment(
+            application_fk=app.id,
+            amount=app.fee_amount,
+            currency="JMD",
+            status="COMPLETED",
+            stripe_payment_intent_id=payment_intent_id,
+            payment_reference=app.application_number,
+            paid_at=datetime.now(timezone.utc),
+        )
+        db.session.add(payment)
+
+        app.status = "SUBMITTED"
+        app.payment_reference = payment_intent_id
+        app.payment_confirmed_at = datetime.now(timezone.utc)
+        app.submitted_at = datetime.now(timezone.utc)
+
+        db.session.add(ApplicationEvent(
+            application_fk=app.id,
+            triggered_by_user_id=user.id,
+            event_type="PAYMENT_CONFIRMED",
+            from_status="DRAFT",
+            to_status="SUBMITTED",
+            comment=f"Payment confirmed via Stripe. Intent: {payment_intent_id}",
+        ))
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "application_number": app.application_number,
+            "status": app.status,
+        }), 200
+
+    except stripe.error.StripeError as e:
+        return jsonify({"error": str(e.user_message)}), 400
