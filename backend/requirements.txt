@@ -30,3 +30,9 @@ tzdata==2025.2
 Werkzeug==3.0.1
 WTForms==3.0.1
 zipp==3.15.0
+
+# AI
+opencv-python-headless==4.9.0.80
+numpy==1.26.4
+Pillow==10.3.0
+pytesseract==0.3.10

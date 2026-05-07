@@ -19,8 +19,16 @@ class DigitalLicence(db.Model):
         nullable=False
     )
 
-    # Photo with background removed
-    photo_url = db.Column(db.String(500), nullable=True)
+    # Photo
+    photo_url    = db.Column(db.String(500), nullable=True)
+    bg_removed   = db.Column(db.Boolean, default=False)      
+
+    # QR code
+    qr_code_path = db.Column(db.String(255), nullable=True)  
+    qr_code_data = db.Column(db.String(255), nullable=True)  
+
+    # Expiry
+    expiry_date  = db.Column(db.Date, nullable=True)         
 
     # When DLRSJAM generated this digital licence
     generated_at = db.Column(

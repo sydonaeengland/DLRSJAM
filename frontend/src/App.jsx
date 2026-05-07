@@ -7,6 +7,7 @@ import Login from "./pages/auth/Login"
 import Register from "./pages/auth/Register"
 import StaffLogin from "./pages/auth/StaffLogin"
 import AdminLogin from "./pages/auth/AdminLogin"
+import Verification from "./pages/applicant/Verification"
 
 // Applicant
 import Dashboard from "./pages/applicant/Dashboard"
@@ -37,6 +38,12 @@ function App() {
           <Route path="/dashboard" element={
             <ProtectedRoute role="applicant">
               <Dashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/verify/:appId" element={
+            <ProtectedRoute role="applicant">
+              <Verification />
             </ProtectedRoute>
           } />
 

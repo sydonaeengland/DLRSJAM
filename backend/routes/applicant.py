@@ -1,9 +1,13 @@
+import os
+from werkzeug.utils import secure_filename
 from flask import Blueprint, jsonify, request
 from config.extensions import db
 from models.licence_record import LicenceRecord
 from models.application import Application
 from models.digital_licence import DigitalLicence
 from models.application_event import ApplicationEvent
+from models.document import Document
+from models.face_verification import VerificationResult 
 from utils.auth import require_applicant
 import uuid
 from datetime import datetime, timezone
@@ -60,6 +64,7 @@ def get_applications(user):
             "fee_amount":          str(a.fee_amount)           if a.fee_amount   else None,
             "payment_reference":   a.payment_reference,
             "officer_comment":     a.officer_comment,
+            "verification_passed":  a.verification_passed,
         } for a in apps]
     }), 200
 
@@ -113,6 +118,11 @@ def get_application(user, app_id):
         "new_parish":            app.new_parish,
         "events":                events,
         "documents":             documents,
+        "verification_passed":      app.verification_passed,
+        "liveness_score":           app.liveness_score,
+        "face_match_score":         app.face_match_score,
+        "verified_at":              app.verified_at.isoformat() if app.verified_at else None,
+        "verification_attempts":    app.verification_attempts,
     }), 200
 
 
@@ -190,6 +200,57 @@ def submit_application(user, app_id):
     return jsonify({"status": app.status}), 200
 
 
+@applicant_bp.route("/applications/<int:app_id>/verify", methods=["POST"])
+@require_applicant
+def verify_identity(user, app_id):
+    app = Application.query.filter_by(id=app_id, user_id_fk=user.id).first()
+    if not app:
+        return jsonify({"error": "Application not found"}), 404
+
+    # Block if max attempts already reached and still failing
+    if (app.verification_attempts or 0) >= 2 and not app.verification_passed:
+        return jsonify({
+            "error": "Maximum verification attempts reached. Please visit your nearest TAJ collectorate."
+        }), 400
+
+    data = request.get_json()
+    passed = data.get("passed", False)
+    liveness_score   = data.get("liveness_score", 0)
+    face_match_score = data.get("face_match_score", 0)
+    challenges_used  = data.get("challenges_used", "")
+
+    # Increment attempt count and save scores to Application
+    app.verification_attempts = (app.verification_attempts or 0) + 1
+    app.verification_passed = passed
+    app.liveness_score = liveness_score
+    app.face_match_score = face_match_score
+    app.verified_at = datetime.now(timezone.utc)
+
+    # Save individual attempt record to VerificationResult
+    verification = VerificationResult(
+        application_fk=app_id,
+        liveness_score=liveness_score,
+        face_match_score=face_match_score,
+        verification_passed=passed,
+        verification_attempts=app.verification_attempts,
+        challenges_used=challenges_used
+    )
+    db.session.add(verification)
+
+    # Max retries reached and still failing — flag for in-person visit
+    if not passed and app.verification_attempts >= 2:
+        app.status = "ACTION_REQUIRED"
+        db.session.add(ApplicationEvent(
+            application_fk=app.id,
+            triggered_by_user_id=user.id,
+            event_type="VERIFICATION_FAILED",
+            comment="Max verification attempts reached. In-person verification required at nearest TAJ collectorate."
+        ))
+
+    db.session.commit()
+    return jsonify({"status": "saved"}), 200
+
+
 @applicant_bp.route("/digital-licence/latest", methods=["GET"])
 @require_applicant
 def get_latest_digital_licence(user):
@@ -206,7 +267,85 @@ def get_latest_digital_licence(user):
         "digital_licence": {
             "id":             dl.id,
             "photo_url":      dl.photo_url,
+            "qr_code_path":   dl.qr_code_path,                                    
+            "expiry_date":    str(dl.expiry_date) if dl.expiry_date else None,      
             "generated_at":   dl.generated_at.isoformat() if dl.generated_at else None,
             "application_id": dl.application_fk,
         }
     }), 200
+    
+    
+ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "pdf"}
+UPLOAD_FOLDER = "uploads"
+
+
+def allowed_file(filename: str) -> bool:
+    return "." in filename and \
+           filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@applicant_bp.route("/applications/<int:app_id>/documents", methods=["POST"])
+@require_applicant
+def upload_document(user, app_id):
+    app = Application.query.filter_by(id=app_id, user_id_fk=user.id).first()
+    if not app:
+        return jsonify({"error": "Application not found"}), 404
+
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file     = request.files["file"]
+    doc_type = request.form.get("doc_type", "").strip()
+
+    if not doc_type:
+        return jsonify({"error": "doc_type is required"}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({"error": "File type not allowed"}), 400
+
+    # Build a safe file path
+    filename  = secure_filename(file.filename)
+    save_path = os.path.join(UPLOAD_FOLDER, str(app_id), doc_type, filename)
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    file.save(save_path)
+
+    # Mark any previous version of this doc_type as not current
+    old_docs = Document.query.filter_by(
+        application_fk=app_id,
+        doc_type=doc_type,
+        is_current=True
+    ).all()
+    for old in old_docs:
+        old.is_current = False
+
+    # Save new document record
+    doc = Document(
+        application_fk=app_id,
+        doc_type=doc_type,
+        doc_subtype=request.form.get("doc_subtype"),
+        version=len(old_docs) + 1,
+        is_current=True,
+        file_path=save_path,
+        original_filename=file.filename,
+        review_status="PENDING"
+    )
+    db.session.add(doc)
+    db.session.flush()
+
+    # If national ID front — run OCR automatically
+    if doc_type == "national_id_front":
+        from backend.services.verification.ocr_service import process_ocr
+        process_ocr(
+            application_id=app_id,
+            image_path=save_path
+        )
+
+    db.session.commit()
+
+    return jsonify({
+        "id":                doc.id,
+        "doc_type":          doc.doc_type,
+        "original_filename": doc.original_filename,
+        "version":           doc.version,
+        "review_status":     doc.review_status,
+    }), 201

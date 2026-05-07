@@ -76,11 +76,13 @@ class Application(db.Model):
     # Officer decision
     officer_decision_at = db.Column(db.DateTime, nullable=True)
     officer_comment = db.Column(db.Text, nullable=True)
-
-    # Digital licence
-    licence_photo_url = db.Column(db.String(500), nullable=True)
-    licence_photo_bg_removed = db.Column(db.Boolean, default=False)
-    digital_licence_generated_at = db.Column(db.DateTime, nullable=True)
+   
+    # Identity verification — scores sent from face-api.js frontend
+    verification_passed     = db.Column(db.Boolean, nullable=True)
+    liveness_score          = db.Column(db.Integer, nullable=True)   # 0-100
+    face_match_score        = db.Column(db.Integer, nullable=True)   # 0-100
+    verified_at             = db.Column(db.DateTime, nullable=True)
+    verification_attempts   = db.Column(db.Integer, default=0)
 
     # Declaration
     declaration = db.Column(db.Text, nullable=True)
