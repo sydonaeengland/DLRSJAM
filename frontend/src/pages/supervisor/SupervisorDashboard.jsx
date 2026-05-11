@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import styles from "./supervisor.module.css";
 import coatOfArms from "../../assets/coat-of-arms.png";
+import ChangePasswordModal from "../../components/officer/ChangePasswordModal";
 
 const Ico = ({ d, size = 16, stroke = "currentColor", sw = 2 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -68,7 +69,7 @@ function toTitleCase(str) {
   return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function ProfileDropdown({ user, onLogout }) {
+function ProfileDropdown({ user, onLogout, onChangePassword }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const initials = getInitials(user?.name || "");
@@ -120,7 +121,7 @@ function ProfileDropdown({ user, onLogout }) {
           </div>
           <div className={styles.profileActions}>
             <button className={styles.profileAction} disabled><UserIcon size={14} /> Edit profile</button>
-            <button className={styles.profileAction} disabled><IdIcon   size={14} /> Change password</button>
+            <button className={styles.profileAction} onClick={() => { setOpen(false); onChangePassword?.(); }}><IdIcon size={14} /> Change password</button>
             <div className={styles.profileDivider} />
             <button className={`${styles.profileAction} ${styles.danger}`} onClick={onLogout}>
               <LogOutIcon size={14} /> Sign out
@@ -292,6 +293,7 @@ export default function SupervisorDashboard() {
   const [notifOpen,     setNotifOpen]     = useState(false);
   const [seenNotifs,    setSeenNotifs]    = useState(new Set());
   const [signingOut,    setSigningOut]    = useState(false);
+  const [showChangePw,  setShowChangePw]  = useState(false);
   const [sectionSearch, setSectionSearch] = useState("");
   const [dateFilter,    setDateFilter]    = useState("all");
   const [officerSearch, setOfficerSearch] = useState("");
@@ -954,6 +956,8 @@ export default function SupervisorDashboard() {
         </div>
       )}
 
+      {showChangePw && <ChangePasswordModal onClose={() => setShowChangePw(false)} />}
+
       {/* Sign-out overlay */}
       {signingOut && (
         <div className={styles.signOutOverlay}>
@@ -1090,7 +1094,7 @@ export default function SupervisorDashboard() {
             <div className={styles.topbarDivider} />
 
             {/* Profile dropdown */}
-            <ProfileDropdown user={user} onLogout={handleLogout} />
+            <ProfileDropdown user={user} onLogout={handleLogout} onChangePassword={() => setShowChangePw(true)} />
           </div>
         </div>
 

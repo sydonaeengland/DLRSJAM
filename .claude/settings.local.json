@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($env:PGPASSWORD = \"dlrsjam_pass\"; & \"C:\\\\Program Files\\\\PostgreSQL\\\\17\\\\bin\\\\psql.exe\" -h localhost -p 5432 -U dlrsjam_user -d dlrsjam -c \"SELECT id, application_number, status, submitted_at, verification_attempts FROM applications WHERE status = 'ACTION_REQUIRED';\")",
+      "Read(//usr/bin/**)",
+      "Read(//usr/local/bin/**)",
+      "Bash(find /c /d /e -name \"psql.exe\")",
+      "WebSearch",
+      "PowerShell(cd \"C:\\\\Users\\\\User\\\\Desktop\\\\DLRSJAM\\\\backend\"; Start-Process python -ArgumentList \"app.py\" -WindowStyle Hidden; Start-Sleep -Seconds 3; try { $r = Invoke-WebRequest -Uri \"http://localhost:5000/api/health\" -TimeoutSec 3 -ErrorAction Stop; $r.StatusCode } catch { \"not up yet\" })"
+    ]
+  }
+}

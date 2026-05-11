@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 from sqlalchemy import text, inspect
 from flask_cors import CORS
+from datetime import datetime, timezone
 import os
 
 from config.extensions import db
@@ -36,7 +37,8 @@ def create_app():
     from routes.officer import officer_bp
     from routes.supervisor import supervisor_bp
     from routes.admin import admin_bp
-    from routes.notifications import notif_bp          
+    from routes.notifications import notif_bp
+    from routes.verification import verify_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(shared_bp)
@@ -44,7 +46,8 @@ def create_app():
     app.register_blueprint(officer_bp)
     app.register_blueprint(supervisor_bp)
     app.register_blueprint(admin_bp)
-    app.register_blueprint(notif_bp)                  
+    app.register_blueprint(notif_bp)
+    app.register_blueprint(verify_bp)
 
     @app.route("/health")
     def health():
@@ -74,6 +77,46 @@ def create_app():
 
 
 app = create_app()
+
+
+@app.cli.command("purge-expired-data")
+def purge_expired_data():
+    """Anonymise biometric and personal data on applications past their retention window.
+    Approved/rejected: 7 years. Abandoned drafts: 30 days. Run via cron daily."""
+    from datetime import timedelta
+    from models.application import Application
+
+    with app.app_context():
+        now = datetime.now(timezone.utc)
+
+        # Abandoned drafts older than 30 days
+        draft_cutoff = now - timedelta(days=30)
+        drafts = Application.query.filter(
+            Application.status == "DRAFT",
+            Application.created_at < draft_cutoff,
+        ).all()
+
+        # Closed applications older than 7 years
+        closed_cutoff = now - timedelta(days=7 * 365)
+        closed = Application.query.filter(
+            Application.status.in_(["APPROVED", "REJECTED"]),
+            Application.updated_at < closed_cutoff,
+        ).all()
+
+        total = 0
+        for appl in drafts + closed:
+            appl.verification_photo  = None
+            appl.face_match_score    = None
+            appl.liveness_score      = None
+            appl.verification_passed = None
+            appl.manual_review_reason = None
+            appl.signature_image     = None
+            appl.declaration         = None
+            total += 1
+
+        db.session.commit()
+        print(f"Purged biometric/personal data from {total} application(s).")
+
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)

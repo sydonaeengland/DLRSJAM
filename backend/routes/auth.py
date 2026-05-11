@@ -8,6 +8,7 @@ from models.role import Role
 from models.user_role import User_role
 from models.licence_record import LicenceRecord
 from models.applicant_profile import Profile
+from utils.auth import get_current_user
 import jwt
 import os
 
@@ -216,6 +217,34 @@ def me():
         return jsonify({"error": "Token expired"}), 401
     except jwt.InvalidTokenError:
         return jsonify({"error": "Invalid token"}), 401
+
+
+@auth_bp.route("/change-password", methods=["POST"])
+def change_password():
+    user = get_current_user()
+    if not user:
+        return jsonify({"error": "Unauthorised"}), 401
+
+    data             = request.get_json() or {}
+    current_password = data.get("current_password", "")
+    new_password     = data.get("new_password", "")
+    confirm_password = data.get("confirm_password", "")
+
+    if not current_password or not new_password or not confirm_password:
+        return jsonify({"error": "All fields are required"}), 400
+
+    if not check_password_hash(user.password_hash, current_password):
+        return jsonify({"error": "Current password is incorrect"}), 400
+
+    if new_password != confirm_password:
+        return jsonify({"error": "New passwords do not match"}), 400
+
+    if len(new_password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters"}), 400
+
+    user.password_hash = generate_password_hash(new_password)
+    db.session.commit()
+    return jsonify({"message": "Password updated successfully"}), 200
 
 
 @auth_bp.route("/staff/login", methods=["POST"])

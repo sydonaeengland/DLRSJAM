@@ -293,6 +293,7 @@ def create_application(user):
         trustee_collection=data.get("trustee_collection", False),
         trustee_name=data.get("trustee_name"),
         trustee_contact=data.get("trustee_contact"),
+        consent_given_at=datetime.now(timezone.utc) if data.get("consent_given_at") else None,
     )
     db.session.add(application)
     db.session.flush()
@@ -415,6 +416,8 @@ def verify_identity(user, app_id):
     challenges_total    = data.get("challenges_total")
     fail_reason         = data.get("fail_reason", "")
     lighting_ok         = data.get("lighting_ok", True)
+    rppg_bpm            = data.get("rppg_bpm")
+    sharpness_score     = data.get("sharpness_score")
 
     app.verification_attempts = (app.verification_attempts or 0) + 1
     app.verification_passed   = passed
@@ -443,6 +446,8 @@ def verify_identity(user, app_id):
     score_parts = [f"Liveness: {liveness_score}"]
     if challenges_passed is not None and challenges_total is not None:
         score_parts.append(f"Challenges: {challenges_passed}/{challenges_total}")
+    if challenges_used:
+        score_parts.append(f"Used: {challenges_used}")
     if independence_score is not None:
         score_parts.append(f"Eye independence: {independence_score}")
     if depth_score is not None:
@@ -451,6 +456,10 @@ def verify_identity(user, app_id):
         score_parts.append(f"Texture: {texture_score}")
     if face_match_score:
         score_parts.append(f"Face match: {face_match_score}")
+    if rppg_bpm:
+        score_parts.append(f"BPM: {rppg_bpm}")
+    if sharpness_score is not None:
+        score_parts.append(f"Sharpness: {sharpness_score}")
     if not lighting_ok:
         score_parts.append("POOR LIGHTING detected")
     score_summary = " | ".join(score_parts)
@@ -1034,3 +1043,126 @@ def update_profile(user):
 
     db.session.commit()
     return jsonify({"email": user.email, "phone": profile.phone if profile else None}), 200
+
+
+# ── DPA compliance ────────────────────────────────────────────────────────────
+
+@applicant_bp.route("/data-export", methods=["GET"])
+@require_applicant
+def data_export(user):
+    from models.applicant_profile import Profile
+    from models.notification import Notification
+
+    profile = Profile.query.filter_by(user_id_fk=user.id).first()
+    licence = LicenceRecord.query.filter_by(user_id_fk=user.id).first()
+    apps    = Application.query.filter_by(user_id_fk=user.id).order_by(Application.created_at.desc()).all()
+    notifs  = Notification.query.filter_by(recipient_user_id=user.id).order_by(Notification.created_at.desc()).limit(100).all()
+
+    return jsonify({
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "account": {
+            "email":      user.email,
+            "created_at": user.created_at.isoformat() if hasattr(user, "created_at") and user.created_at else None,
+        },
+        "profile": {
+            "firstname":    profile.firstname    if profile else None,
+            "lastname":     profile.lastname     if profile else None,
+            "date_of_birth": str(profile.date_of_birth) if profile and profile.date_of_birth else None,
+            "phone":        profile.phone        if profile else None,
+            "address_line1": profile.address_line1 if profile else None,
+            "address_line2": profile.address_line2 if profile else None,
+            "parish":       profile.parish       if profile else None,
+            "sex":          profile.sex          if profile else None,
+            "occupation":   profile.occupation   if profile else None,
+        },
+        "licence_record": {
+            "trn":           licence.trn           if licence else None,
+            "control_number": licence.control_number if licence else None,
+            "licence_class": licence.licence_class  if licence else None,
+            "expiry_date":   str(licence.expiry_date) if licence and licence.expiry_date else None,
+            "collectorate":  licence.collectorate   if licence else None,
+        },
+        "applications": [{
+            "application_number": a.application_number,
+            "transaction_type":   a.transaction_type,
+            "status":             a.status,
+            "submitted_at":       a.submitted_at.isoformat() if a.submitted_at else None,
+            "created_at":         a.created_at.isoformat()   if a.created_at   else None,
+            "consent_given_at":   a.consent_given_at.isoformat() if a.consent_given_at else None,
+            "verification_passed": a.verification_passed,
+            "face_match_score":   a.face_match_score,
+            "liveness_score":     a.liveness_score,
+            "documents": [{
+                "doc_type":   d.doc_type,
+                "uploaded_at": d.created_at.isoformat() if d.created_at else None,
+            } for d in a.documents],
+        } for a in apps],
+        "notifications": [{
+            "event_type": n.event_type,
+            "message":    n.message,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+            "is_read":    n.is_read,
+        } for n in notifs],
+    }), 200
+
+
+@applicant_bp.route("/account", methods=["DELETE"])
+@require_applicant
+def delete_account(user):
+    from models.applicant_profile import Profile
+    from werkzeug.security import check_password_hash
+    import hashlib
+
+    data     = request.get_json() or {}
+    password = data.get("password", "")
+
+    if not password:
+        return jsonify({"error": "Password is required to delete your account"}), 400
+    if not check_password_hash(user.password_hash, password):
+        return jsonify({"error": "Incorrect password"}), 403
+
+    # Block deletion while any application is actively being processed
+    active_statuses = {"SUBMITTED", "UNDER_REVIEW", "PENDING_ITA", "ACTION_REQUIRED",
+                       "WAITING_ON_APPLICANT", "RESUBMITTED", "ESCALATED"}
+    active = Application.query.filter(
+        Application.user_id_fk == user.id,
+        Application.status.in_(active_statuses)
+    ).first()
+    if active:
+        return jsonify({
+            "error": "You have an application currently in progress. "
+                     "It must be completed, approved, or rejected before your account can be deleted."
+        }), 409
+
+    anon_hash = hashlib.sha256(str(user.id).encode()).hexdigest()[:16]
+
+    # Anonymise biometric and personal data on all applications
+    for app in Application.query.filter_by(user_id_fk=user.id).all():
+        app.verification_photo  = None
+        app.face_match_score    = None
+        app.liveness_score      = None
+        app.verification_passed = None
+        app.manual_review_reason = None
+        app.officer_comment     = None
+        app.declaration         = None
+        app.signature_image     = None
+        app.trustee_name        = None
+        app.trustee_contact     = None
+
+    # Anonymise profile
+    profile = Profile.query.filter_by(user_id_fk=user.id).first()
+    if profile:
+        profile.firstname    = f"[deleted-{anon_hash}]"
+        profile.lastname     = ""
+        profile.phone        = None
+        profile.address_line1 = None
+        profile.address_line2 = None
+        profile.email        = None
+
+    # Anonymise user account — deactivate rather than hard delete to preserve FK refs
+    user.email         = f"deleted-{anon_hash}@redacted.dlrsjam"
+    user.password_hash = ""
+    user.is_active     = False
+
+    db.session.commit()
+    return jsonify({"message": "Account deleted and personal data removed"}), 200

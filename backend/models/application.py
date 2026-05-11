@@ -91,6 +91,8 @@ class Application(db.Model):
     manual_review_reason = db.Column(db.Text, nullable=True)
     reverification_requested = db.Column(db.Boolean, default=False)
 
+    consent_given_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(timezone.utc))
 

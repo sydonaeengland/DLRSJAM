@@ -333,8 +333,13 @@ export default function StepVerification({ app, licence, systemFlags, setSystemF
                     <img
                       src={liveApp.verification_photo}
                       alt="Verification capture"
-                      style={{ width: "120px", height: "120px", objectFit: "cover", borderRadius: "8px", border: "2px solid #e2e8f0", display: "block", marginBottom: 10 }}
+                      style={{ width: "120px", height: "120px", objectFit: "cover", borderRadius: "8px", border: "2px solid #e2e8f0", display: "block", marginBottom: 6 }}
                     />
+                    {sharpLabel && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "3px 10px", borderRadius: "999px", background: sharpBg, marginBottom: 8 }}>
+                        <span style={{ fontSize: "10px", fontWeight: "700", color: sharpColor }}>Sharpness: {sharpLabel}</span>
+                      </div>
+                    )}
                     {photoDoc && (
                       <div>
                         <p style={{ fontSize: "10px", fontWeight: "700", color: "#6b7280", marginBottom: 6 }}>Photo Decision</p>
@@ -377,22 +382,74 @@ export default function StepVerification({ app, licence, systemFlags, setSystemF
             })()}
 
             {/* Score breakdown */}
-            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "14px 16px" }}>
-              <p style={{ fontSize: "10px", fontWeight: "700", color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>Score Breakdown</p>
-              <ScoreBar label="Liveness Score"  value={liveApp.liveness_score}    threshold={50} />
-              <ScoreBar label="Face Match"       value={liveApp.face_match_score}  threshold={20} />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "12px" }}>
-                {[
-                  ["Attempts",   liveApp.verification_attempts],
-                  ["Verified At", liveApp.verified_at ? fmtTime(liveApp.verified_at) : "—"],
-                ].map(([label, val]) => (
-                  <div key={label}>
-                    <p style={{ fontSize: "10px", color: "#9ca3af", margin: "0 0 2px" }}>{label}</p>
-                    <p style={{ fontSize: "12px", fontWeight: "700", color: "#111827", margin: 0 }}>{val}</p>
+            {(() => {
+              // pull sub-scores out of the verification event comment
+              // format: "Liveness: 72 | Challenges: 3/3 | Eye independence: 55 | Face depth: 68 | Texture: 61 | Face match: 81"
+              const verifEvent = (app.events || []).slice().reverse().find(e =>
+                e.event_type === "VERIFICATION_PASSED" || e.event_type === "VERIFICATION_ATTEMPT_FAILED"
+              );
+              const comment = verifEvent?.comment || "";
+              const extract = (key) => {
+                const m = comment.match(new RegExp(`${key}:\\s*(\\d+)`));
+                return m ? parseInt(m[1], 10) : null;
+              };
+              const extractFraction = (key) => {
+                const m = comment.match(new RegExp(`${key}:\\s*(\\d+)/(\\d+)`));
+                return m ? Math.round((parseInt(m[1], 10) / parseInt(m[2], 10)) * 100) : null;
+              };
+              const chalScore     = extractFraction("Challenges");
+              const depthScore    = extract("Face depth");
+              const texScore      = extract("Texture");
+              const indepScore    = extract("Eye independence");
+              const rppgBpm       = extract("BPM");
+              const sharpness     = extract("Sharpness");
+              const sharpLabel    = sharpness == null ? null : sharpness > 300 ? "High" : sharpness > 80 ? "Medium" : "Low";
+              const sharpColor    = sharpLabel === "High" ? "#15803d" : sharpLabel === "Medium" ? "#d97706" : "#dc2626";
+              const sharpBg       = sharpLabel === "High" ? "#dcfce7" : sharpLabel === "Medium" ? "#fef9c3" : "#fee2e2";
+              const usedMatch = comment.match(/Used:\s*([a-z_+]+)/i);
+              const challengeLabels = usedMatch
+                ? usedMatch[1].split("+").map(c => c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())).join(", ")
+                : null;
+
+              return (
+                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "14px 16px" }}>
+                  <p style={{ fontSize: "10px", fontWeight: "700", color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 12px" }}>Score Breakdown</p>
+                  <ScoreBar label="Liveness Score"      value={liveApp.liveness_score}   threshold={50} />
+                  <ScoreBar label="Face Match"           value={liveApp.face_match_score} threshold={40} />
+                  {chalScore  != null && <ScoreBar label="Challenge Response" value={chalScore}  threshold={55} />}
+                  {challengeLabels && (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                      <span style={{ fontSize: "11px", color: "#6b7280" }}>Challenges used</span>
+                      <span style={{ fontSize: "11px", fontWeight: "600", color: "#374151", textAlign: "right", maxWidth: "60%" }}>{challengeLabels}</span>
+                    </div>
+                  )}
+                  {depthScore != null && <ScoreBar label="3D Depth"           value={depthScore} threshold={55} />}
+                  {texScore   != null && <ScoreBar label="Texture (LBP)"      value={texScore}   threshold={55} />}
+                  {indepScore != null && <ScoreBar label="Iris Independence"  value={indepScore} threshold={40} />}
+                  {rppgBpm != null && (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px", paddingTop: "8px", borderTop: "1px solid #e2e8f0" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ fontSize: "13px" }}>❤️</span>
+                        <span style={{ fontSize: "11px", color: "#6b7280" }}>Estimated Heart Rate</span>
+                        <span style={{ fontSize: "9px", fontWeight: "700", color: "#94a3b8", background: "#f1f5f9", padding: "1px 6px", borderRadius: "999px", textTransform: "uppercase" }}>rPPG</span>
+                      </div>
+                      <span style={{ fontSize: "14px", fontWeight: "800", color: "#15803d" }}>{rppgBpm} <span style={{ fontSize: "10px", color: "#6b7280", fontWeight: "500" }}>BPM</span></span>
+                    </div>
+                  )}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #e2e8f0" }}>
+                    {[
+                      ["Attempts",    liveApp.verification_attempts],
+                      ["Verified At", liveApp.verified_at ? fmtTime(liveApp.verified_at) : "—"],
+                    ].map(([label, val]) => (
+                      <div key={label}>
+                        <p style={{ fontSize: "10px", color: "#9ca3af", margin: "0 0 2px" }}>{label}</p>
+                        <p style={{ fontSize: "12px", fontWeight: "700", color: "#111827", margin: 0 }}>{val}</p>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              );
+            })()}
 
             {/* Manual review status */}
             {liveApp.needs_manual_review && (

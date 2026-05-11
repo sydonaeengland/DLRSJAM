@@ -120,13 +120,31 @@ function DownloadLicenceButton({ frontRef, backRef, licence }) {
 
 function AccountSettingsModal({ onClose }) {
   const emailRef = useRef(null);
+  const [tab, setTab] = useState("contact");
+
+  // Contact tab state
   const [originalEmail, setOriginalEmail] = useState("");
   const [email, setEmail]     = useState("");
   const [phone, setPhone]     = useState("");
-  const [password, setPassword] = useState("");
-  const [saving, setSaving]   = useState(false);
-  const [error, setError]     = useState(null);
-  const [success, setSuccess] = useState(false);
+  const [confirmPw, setConfirmPw] = useState("");
+  const [contactSaving, setContactSaving] = useState(false);
+
+  // Data & privacy tab state
+  const [exporting,     setExporting]     = useState(false);
+  const [deletePw,      setDeletePw]      = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting,      setDeleting]      = useState(false);
+  const [deleteError,   setDeleteError]   = useState(null);
+  const [contactError, setContactError]   = useState(null);
+  const [contactSuccess, setContactSuccess] = useState(false);
+
+  // Password tab state
+  const [currentPw,  setCurrentPw]  = useState("");
+  const [newPw,      setNewPw]      = useState("");
+  const [confirmNewPw, setConfirmNewPw] = useState("");
+  const [pwSaving,   setPwSaving]   = useState(false);
+  const [pwError,    setPwError]    = useState(null);
+  const [pwSuccess,  setPwSuccess]  = useState(false);
 
   useEffect(() => {
     api.get("/api/applicant/profile").then(res => {
@@ -139,36 +157,66 @@ function AccountSettingsModal({ onClose }) {
 
   const emailChanging = email.trim().toLowerCase() !== originalEmail.toLowerCase();
 
-  const save = async () => {
-    setError(null);
-    setSuccess(false);
-    setSaving(true);
+  const saveContact = async () => {
+    setContactError(null);
+    setContactSuccess(false);
+    setContactSaving(true);
     try {
       const payload = { email, phone };
-      if (emailChanging) payload.password = password;
+      if (emailChanging) payload.password = confirmPw;
       await api.patch("/api/applicant/profile", payload);
       setOriginalEmail(email);
-      setPassword("");
-      setSuccess(true);
+      setConfirmPw("");
+      setContactSuccess(true);
     } catch (err) {
-      setError(err.response?.data?.error || "Something went wrong. Please try again.");
+      setContactError(err.response?.data?.error || "Something went wrong. Please try again.");
     } finally {
-      setSaving(false);
+      setContactSaving(false);
     }
   };
 
-  const canSave = email.trim() && (!emailChanging || password.trim());
+  const savePassword = async () => {
+    setPwError(null);
+    setPwSuccess(false);
+    setPwSaving(true);
+    try {
+      await api.post("/api/auth/change-password", {
+        current_password: currentPw,
+        new_password: newPw,
+        confirm_password: confirmNewPw,
+      });
+      setCurrentPw(""); setNewPw(""); setConfirmNewPw("");
+      setPwSuccess(true);
+    } catch (err) {
+      setPwError(err.response?.data?.error || "Something went wrong. Please try again.");
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
+  const canSaveContact = email.trim() && (!emailChanging || confirmPw.trim());
+  const canSavePw = currentPw && newPw && confirmNewPw;
+
+  const TAB_STYLE = (active) => ({
+    flex: 1, padding: "8px", borderRadius: "8px", border: "none", cursor: "pointer",
+    fontSize: "13px", fontWeight: "600", fontFamily: "inherit",
+    background: active ? BRAND.primary : "transparent",
+    color: active ? "white" : "#6b7280",
+    transition: "all 0.15s",
+  });
+
+  const INPUT_STYLE = { width: "100%", border: "1.5px solid #e2e8f0", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
       onClick={onClose}>
-      <div style={{ background: "white", borderRadius: "16px", padding: "28px", maxWidth: "420px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
+      <div style={{ background: "white", borderRadius: "16px", padding: "28px", maxWidth: "420px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column" }}
         onClick={e => e.stopPropagation()}>
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px", flexShrink: 0 }}>
           <div>
             <p style={{ fontSize: "16px", fontWeight: "800", color: "#111827", margin: 0 }}>Account Settings</p>
-            <p style={{ fontSize: "12px", color: "#9ca3af", margin: "2px 0 0" }}>Update your contact information</p>
+            <p style={{ fontSize: "12px", color: "#9ca3af", margin: "2px 0 0" }}>Manage your account details</p>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -177,50 +225,188 @@ function AccountSettingsModal({ onClose }) {
           </button>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-          <div>
-            <label style={{ fontSize: "12px", fontWeight: "700", color: "#374151", display: "block", marginBottom: "6px" }}>Email address</label>
-            <input ref={emailRef} type="email" value={email} onChange={e => { setEmail(e.target.value); setSuccess(false); setError(null); }}
-              style={{ width: "100%", border: `1.5px solid ${emailChanging ? "#a78bfa" : "#e2e8f0"}`, borderRadius: "10px", padding: "10px 12px", fontSize: "14px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
-          </div>
-          <div>
-            <label style={{ fontSize: "12px", fontWeight: "700", color: "#374151", display: "block", marginBottom: "6px" }}>Phone number</label>
-            <input type="tel" value={phone} onChange={e => { setPhone(e.target.value); setSuccess(false); }}
-              style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
-          </div>
+        {/* Tab switcher */}
+        <div style={{ display: "flex", gap: "4px", background: "#f3f4f6", borderRadius: "10px", padding: "4px", marginBottom: "20px", flexShrink: 0 }}>
+          <button style={TAB_STYLE(tab === "contact")}  onClick={() => setTab("contact")}>Contact Info</button>
+          <button style={TAB_STYLE(tab === "password")} onClick={() => setTab("password")}>Password</button>
+          <button style={TAB_STYLE(tab === "data")}     onClick={() => setTab("data")}>Data & Privacy</button>
+        </div>
 
-          {emailChanging && (
-            <div style={{ padding: "14px", background: "#faf5ff", border: "1.5px solid #c4b5fd", borderRadius: "10px" }}>
-              <label style={{ fontSize: "12px", fontWeight: "700", color: "#6d28d9", display: "block", marginBottom: "6px" }}>
-                Confirm your current password <span style={{ color: "#dc2626" }}>*</span>
-              </label>
-              <p style={{ fontSize: "11px", color: "#7c3aed", margin: "0 0 8px" }}>Required to change your login email.</p>
-              <input type="password" value={password} onChange={e => { setPassword(e.target.value); setError(null); }}
-                placeholder="Enter your password"
-                style={{ width: "100%", border: "1.5px solid #c4b5fd", borderRadius: "8px", padding: "9px 12px", fontSize: "13px", fontFamily: "inherit", outline: "none", boxSizing: "border-box", background: "white" }} />
+        {/* Fixed-height scrollable body */}
+        <div style={{ height: "320px", overflowY: "auto", paddingRight: "2px" }}>
+
+        {tab === "contact" && (
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: "700", color: "#374151", display: "block", marginBottom: "6px" }}>Email address</label>
+                <input ref={emailRef} type="email" value={email} onChange={e => { setEmail(e.target.value); setContactSuccess(false); setContactError(null); }}
+                  style={{ ...INPUT_STYLE, border: `1.5px solid ${emailChanging ? "#a78bfa" : "#e2e8f0"}` }} />
+              </div>
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: "700", color: "#374151", display: "block", marginBottom: "6px" }}>Phone number</label>
+                <input type="tel" value={phone} onChange={e => { setPhone(e.target.value); setContactSuccess(false); }}
+                  style={INPUT_STYLE} />
+              </div>
+              {emailChanging && (
+                <div style={{ padding: "14px", background: "#faf5ff", border: "1.5px solid #c4b5fd", borderRadius: "10px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: "700", color: "#6d28d9", display: "block", marginBottom: "6px" }}>
+                    Confirm your current password <span style={{ color: "#dc2626" }}>*</span>
+                  </label>
+                  <p style={{ fontSize: "11px", color: "#7c3aed", margin: "0 0 8px" }}>Required to change your login email.</p>
+                  <input type="password" value={confirmPw} onChange={e => { setConfirmPw(e.target.value); setContactError(null); }}
+                    placeholder="Enter your password"
+                    style={{ width: "100%", border: "1.5px solid #c4b5fd", borderRadius: "8px", padding: "9px 12px", fontSize: "13px", fontFamily: "inherit", outline: "none", boxSizing: "border-box", background: "white" }} />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-
-        {error && (
-          <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "12px", padding: "10px 12px", background: "#fef2f2", borderRadius: "8px" }}>{error}</p>
+            {contactError && <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "12px", padding: "10px 12px", background: "#fef2f2", borderRadius: "8px" }}>{contactError}</p>}
+            {contactSuccess && (
+              <p style={{ fontSize: "12px", color: "#15803d", marginTop: "12px", padding: "10px 12px", background: "#f0fdf4", borderRadius: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12l5 5L20 7" /></svg>
+                Contact details updated successfully.
+              </p>
+            )}
+            <div style={{ display: "flex", gap: "8px", marginTop: "20px" }}>
+              <button onClick={onClose} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1.5px solid #e2e8f0", background: "white", fontSize: "13px", fontWeight: "600", color: "#374151", cursor: "pointer", fontFamily: "inherit" }}>
+                {contactSuccess ? "Close" : "Cancel"}
+              </button>
+              <button onClick={saveContact} disabled={contactSaving || !canSaveContact}
+                style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "none", background: contactSaving || !canSaveContact ? "#94a3b8" : BRAND.primary, color: "white", fontSize: "13px", fontWeight: "700", cursor: contactSaving || !canSaveContact ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+                {contactSaving ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </>
         )}
-        {success && (
-          <p style={{ fontSize: "12px", color: "#15803d", marginTop: "12px", padding: "10px 12px", background: "#f0fdf4", borderRadius: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12l5 5L20 7" /></svg>
-            Contact details updated successfully.
-          </p>
+
+        {tab === "password" && (
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: "700", color: "#374151", display: "block", marginBottom: "6px" }}>Current password</label>
+                <input type="password" value={currentPw} onChange={e => { setCurrentPw(e.target.value); setPwError(null); setPwSuccess(false); }}
+                  placeholder="Enter current password" style={INPUT_STYLE} />
+              </div>
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: "700", color: "#374151", display: "block", marginBottom: "6px" }}>New password</label>
+                <input type="password" value={newPw} onChange={e => { setNewPw(e.target.value); setPwError(null); setPwSuccess(false); }}
+                  placeholder="At least 8 characters" style={INPUT_STYLE} />
+              </div>
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: "700", color: "#374151", display: "block", marginBottom: "6px" }}>Confirm new password</label>
+                <input type="password" value={confirmNewPw} onChange={e => { setConfirmNewPw(e.target.value); setPwError(null); setPwSuccess(false); }}
+                  placeholder="Re-enter new password" style={INPUT_STYLE} />
+              </div>
+            </div>
+            {pwError && <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "12px", padding: "10px 12px", background: "#fef2f2", borderRadius: "8px" }}>{pwError}</p>}
+            {pwSuccess && (
+              <p style={{ fontSize: "12px", color: "#15803d", marginTop: "12px", padding: "10px 12px", background: "#f0fdf4", borderRadius: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12l5 5L20 7" /></svg>
+                Password changed successfully.
+              </p>
+            )}
+            <div style={{ display: "flex", gap: "8px", marginTop: "20px" }}>
+              <button onClick={onClose} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1.5px solid #e2e8f0", background: "white", fontSize: "13px", fontWeight: "600", color: "#374151", cursor: "pointer", fontFamily: "inherit" }}>
+                {pwSuccess ? "Close" : "Cancel"}
+              </button>
+              <button onClick={savePassword} disabled={pwSaving || !canSavePw}
+                style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "none", background: pwSaving || !canSavePw ? "#94a3b8" : BRAND.primary, color: "white", fontSize: "13px", fontWeight: "700", cursor: pwSaving || !canSavePw ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+                {pwSaving ? "Updating…" : "Update Password"}
+              </button>
+            </div>
+          </>
         )}
 
-        <div style={{ display: "flex", gap: "8px", marginTop: "20px" }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1.5px solid #e2e8f0", background: "white", fontSize: "13px", fontWeight: "600", color: "#374151", cursor: "pointer", fontFamily: "inherit" }}>
-            {success ? "Close" : "Cancel"}
-          </button>
-          <button onClick={save} disabled={saving || !canSave}
-            style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "none", background: saving || !canSave ? "#94a3b8" : BRAND.primary, color: "white", fontSize: "13px", fontWeight: "700", cursor: saving || !canSave ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-            {saving ? "Saving…" : "Save Changes"}
-          </button>
-        </div>
+        {tab === "data" && (
+          <>
+            {/* Download my data */}
+            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px", marginBottom: "14px" }}>
+              <p style={{ fontSize: "13px", fontWeight: "700", color: "#1b1c1c", margin: "0 0 4px" }}>Download my data</p>
+              <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 12px", lineHeight: 1.55 }}>
+                Export a copy of all personal data TAJ holds on your account — profile, licence record, applications, and notifications.
+              </p>
+              <button
+                onClick={async () => {
+                  setExporting(true);
+                  try {
+                    const res = await api.get("/api/applicant/data-export");
+                    const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: "application/json" });
+                    const url  = URL.createObjectURL(blob);
+                    const a    = document.createElement("a");
+                    a.href = url; a.download = "dlrsjam-my-data.json"; a.click();
+                    URL.revokeObjectURL(url);
+                  } catch { }
+                  finally { setExporting(false); }
+                }}
+                disabled={exporting}
+                style={{ padding: "9px 16px", borderRadius: "8px", border: "1.5px solid #e2e8f0", background: "white", fontSize: "13px", fontWeight: "600", color: "#374151", cursor: exporting ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: "7px" }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                {exporting ? "Preparing…" : "Download JSON"}
+              </button>
+            </div>
+
+            {/* Privacy notice link */}
+            <a href="/privacy" target="_blank" rel="noreferrer"
+              style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "13px", fontWeight: "600", color: BRAND.primary, textDecoration: "none", marginBottom: "20px" }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              View Privacy Notice
+            </a>
+
+            {/* Delete account */}
+            <div style={{ border: "1.5px solid #fecaca", borderRadius: "12px", padding: "16px", background: "#fff5f5" }}>
+              <p style={{ fontSize: "13px", fontWeight: "700", color: "#dc2626", margin: "0 0 4px" }}>Delete account</p>
+              <p style={{ fontSize: "12px", color: "#7f1d1d", margin: "0 0 12px", lineHeight: 1.55 }}>
+                Permanently removes your personal and biometric data. Cannot be undone. Not available while an application is in progress.
+              </p>
+              {!deleteConfirm ? (
+                <button onClick={() => setDeleteConfirm(true)}
+                  style={{ padding: "9px 16px", borderRadius: "8px", border: "1.5px solid #fca5a5", background: "white", fontSize: "13px", fontWeight: "600", color: "#dc2626", cursor: "pointer", fontFamily: "inherit" }}>
+                  Request account deletion
+                </button>
+              ) : (
+                <>
+                  <p style={{ fontSize: "12px", color: "#7f1d1d", margin: "0 0 8px", fontWeight: "600" }}>Enter your password to confirm:</p>
+                  <input type="password" value={deletePw} onChange={e => { setDeletePw(e.target.value); setDeleteError(null); }}
+                    placeholder="Your password" style={{ width: "100%", border: "1.5px solid #fca5a5", borderRadius: "8px", padding: "9px 12px", fontSize: "13px", fontFamily: "inherit", outline: "none", boxSizing: "border-box", background: "white", marginBottom: "8px" }} />
+                  {deleteError && <p style={{ fontSize: "12px", color: "#dc2626", margin: "0 0 8px" }}>{deleteError}</p>}
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button onClick={() => { setDeleteConfirm(false); setDeletePw(""); setDeleteError(null); }}
+                      style={{ flex: 1, padding: "9px", borderRadius: "8px", border: "1.5px solid #e2e8f0", background: "white", fontSize: "13px", fontWeight: "600", color: "#374151", cursor: "pointer", fontFamily: "inherit" }}>
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setDeleting(true); setDeleteError(null);
+                        try {
+                          await api.delete("/api/applicant/account", { data: { password: deletePw } });
+                          onClose();
+                          window.location.href = "/login";
+                        } catch (err) {
+                          setDeleteError(err.response?.data?.error || "Could not delete account.");
+                        } finally { setDeleting(false); }
+                      }}
+                      disabled={deleting || !deletePw}
+                      style={{ flex: 1, padding: "9px", borderRadius: "8px", border: "none", background: deleting || !deletePw ? "#94a3b8" : "#dc2626", color: "white", fontSize: "13px", fontWeight: "700", cursor: deleting || !deletePw ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+                      {deleting ? "Deleting…" : "Confirm Delete"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div style={{ marginTop: "16px", textAlign: "right" }}>
+              <button onClick={onClose} style={{ padding: "10px 20px", borderRadius: "8px", border: "1.5px solid #e2e8f0", background: "white", fontSize: "13px", fontWeight: "600", color: "#374151", cursor: "pointer", fontFamily: "inherit" }}>
+                Close
+              </button>
+            </div>
+          </>
+        )}
+        </div>{/* end scrollable body */}
       </div>
     </div>
   );

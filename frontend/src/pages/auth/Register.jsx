@@ -181,6 +181,10 @@ function Step1({ trn, setTrn, dob, setDob, controlNumber, setControlNumber, erro
         Already have an account?{" "}
         <Link to="/login" className="font-semibold hover:underline" style={{ color: BRAND.primary }}>Sign in</Link>
       </p>
+      <p className="mt-3 text-center text-xs text-gray-400">
+        By creating an account you agree to TAJ's{" "}
+        <Link to="/privacy" target="_blank" className="font-semibold hover:underline" style={{ color: BRAND.primary }}>Privacy Notice</Link>
+      </p>
     </div>
   );
 }

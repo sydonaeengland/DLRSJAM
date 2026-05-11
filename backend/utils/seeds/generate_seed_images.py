@@ -90,8 +90,9 @@ def _holo_overlay(img, opacity=0.18):
 def _field_box(draw, x, y, w, h, label, value, label_color, border_color,
                value_size=9, label_size=7, value_color=BLACK, bold_value=True):
     """Draw a labelled field box matching LicenceCard Field component."""
+    # solid white fill so OCR isn't confused by the gradient/holo underneath
     draw.rectangle([x, y, x + w, y + h],
-                   fill=(255, 255, 255, 102), outline=border_color, width=1)
+                   fill=(255, 255, 255), outline=border_color, width=1)
     draw.text((x + 3, y + 2), label, font=_font(label_size), fill=label_color)
     vfont = _font(value_size) if bold_value else _font_reg(value_size)
     draw.text((x + 3, y + 2 + label_size + 2), value, font=vfont, fill=value_color)
@@ -349,11 +350,12 @@ def make_nid_front(path, firstname, lastname, trn, dob, address):
     fy      = body_y
 
     def nid_field(x, y, w, h, label, value, small=False):
+        # solid white so OCR reads cleanly through the gradient background
         draw.rectangle([x, y, x + w, y + h],
-                       fill=(255, 255, 255, 100), outline=NID_GREEN_DARK, width=1)
-        draw.text((x + 3, y + 2), label, font=_font(7), fill=NID_GREEN_DARK)
-        sz = 7 if small else 9
-        draw.text((x + 3, y + 11), value, font=_font(sz), fill=BLACK)
+                       fill=(255, 255, 255), outline=NID_GREEN_DARK, width=1)
+        draw.text((x + 3, y + 2), label, font=_font(8), fill=NID_GREEN_DARK)
+        sz = 9 if small else 12
+        draw.text((x + 3, y + 13), value, font=_font(sz), fill=BLACK)
 
     nid_field(PAD, fy, fw2, row_h, "TRN", trn)
     nid_field(PAD + fw2 + 3, fy, fw2, row_h, "DATE OF BIRTH", str(dob))
@@ -364,20 +366,20 @@ def make_nid_front(path, firstname, lastname, trn, dob, address):
     fy += row_h + 3
 
     # Name
-    name_h = 26
+    name_h = 30
     draw.rectangle([PAD, fy, PAD + fw, fy + name_h],
-                   fill=(255, 255, 255, 100), outline=NID_GREEN_DARK, width=1)
-    draw.text((PAD + 3, fy + 2), "NAME", font=_font(7), fill=NID_GREEN_DARK)
-    draw.text((PAD + 3, fy + 11), f"{firstname.upper()} {lastname.upper()}",
-              font=_font(11), fill=BLACK)
+                   fill=(255, 255, 255), outline=NID_GREEN_DARK, width=1)
+    draw.text((PAD + 3, fy + 2), "NAME", font=_font(8), fill=NID_GREEN_DARK)
+    draw.text((PAD + 3, fy + 13), f"{firstname.upper()} {lastname.upper()}",
+              font=_font(13), fill=BLACK)
     fy += name_h + 3 + 3
 
     # Address
     addr_h = H - fy - PAD - 5
     draw.rectangle([PAD, fy, PAD + fw, fy + addr_h],
-                   fill=(255, 255, 255, 100), outline=NID_GREEN_DARK, width=1)
-    draw.text((PAD + 3, fy + 2), "ADDRESS", font=_font(7), fill=NID_GREEN_DARK)
-    draw.text((PAD + 3, fy + 11), address[:55], font=_font_reg(8), fill=BLACK)
+                   fill=(255, 255, 255), outline=NID_GREEN_DARK, width=1)
+    draw.text((PAD + 3, fy + 2), "ADDRESS", font=_font(8), fill=NID_GREEN_DARK)
+    draw.text((PAD + 3, fy + 13), address[:55], font=_font_reg(11), fill=BLACK)
 
     # Photo box
     draw.rectangle([photo_x, body_y, photo_x + photo_w, body_y + photo_h],
@@ -443,8 +445,8 @@ def make_nid_back(path, trn, firstname, lastname):
         f"TRN: {trn}",
     ]
     for l in lines:
-        draw.text((PAD, y), l, font=_font_reg(9), fill=GREY_TEXT)
-        y += 14
+        draw.text((PAD, y), l, font=_font_reg(12), fill=BLACK)
+        y += 18
 
     # Barcode
     bc_y = H - PAD - 32

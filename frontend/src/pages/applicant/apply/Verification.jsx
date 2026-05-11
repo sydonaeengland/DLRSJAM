@@ -1,5 +1,5 @@
 // Step 6 — liveness and face match verification using MediaPipe. Checks 3D geometry, iris movement, specular highlights, and rPPG heartbeat signal to block static photos.
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import * as faceapi from "face-api.js";
 import StepLayout from "../../../components/layout/StepLayout";
@@ -14,7 +14,8 @@ const HOLD_SECONDS         = 4;
 const MIN_STABLE_FRAMES    = 10;
 const MAX_ATTEMPTS         = 3;
 const CHALLENGE_TIMEOUT    = 14000; // 14s — generous window for real users
-const MIN_COVERAGE         = 0.12;
+const MIN_COVERAGE         = 0.18;
+const DISTANCE_DEBOUNCE    = 8;   // consecutive frames before a distance-state change commits
 const CONSEC_FRAMES        = 6;     // kept for reference
 
 // EMA smoothing factor for gaze signal — 0.35 = moderate smoothing, removes jitter without lag
@@ -270,7 +271,7 @@ const BRIEFING_SLIDES = [
   {
     emoji: "📷",
     title: "Face the camera",
-    desc: "Sit close to the screen — your face should fill most of the oval. Closer than you think! About half an arm's length away works best.",
+    desc: "Sit close to the screen — your face should fill most of the box. Closer than you think! About half an arm's length away works best.",
   },
   {
     emoji: "👓",
@@ -442,6 +443,37 @@ function computeRppgScore(greenSamples, fps) {
   return { score, bpm, snr: Math.round(snr * 10) / 10 };
 }
 
+// Laplacian variance — measures image sharpness by computing the variance of the
+// Laplacian operator across the face region. Higher = sharper frame.
+function laplacianVariance(canvas, box) {
+  try {
+    const ctx = canvas.getContext("2d");
+    const x = Math.max(0, Math.floor(box.x));
+    const y = Math.max(0, Math.floor(box.y));
+    const w = Math.min(Math.floor(box.width),  canvas.width  - x);
+    const h = Math.min(Math.floor(box.height), canvas.height - y);
+    if (w < 20 || h < 20) return 0;
+    const pixels = ctx.getImageData(x, y, w, h).data;
+    // convert to grayscale
+    const gray = new Float32Array(w * h);
+    for (let i = 0; i < w * h; i++)
+      gray[i] = 0.299 * pixels[i*4] + 0.587 * pixels[i*4+1] + 0.114 * pixels[i*4+2];
+    // apply 3x3 Laplacian kernel [0,1,0,1,-4,1,0,1,0]
+    let sum = 0, sum2 = 0, count = 0;
+    for (let r = 1; r < h - 1; r++) {
+      for (let c = 1; c < w - 1; c++) {
+        const lap = -4 * gray[r*w+c] + gray[(r-1)*w+c] + gray[(r+1)*w+c] + gray[r*w+c-1] + gray[r*w+c+1];
+        sum  += lap;
+        sum2 += lap * lap;
+        count++;
+      }
+    }
+    if (!count) return 0;
+    const mean = sum / count;
+    return (sum2 / count) - mean * mean; // variance
+  } catch { return 0; }
+}
+
 function measureBrightness(canvas, box) {
   try {
     const ctx = canvas.getContext("2d");
@@ -457,6 +489,43 @@ function measureBrightness(canvas, box) {
       sum += 0.299 * pixels[i] + 0.587 * pixels[i+1] + 0.114 * pixels[i+2];
     return sum / (pixels.length / 4);
   } catch { return 128; }
+}
+
+// Returns true only if the landmark geometry looks like a real human face.
+// Rejects toys, stuffed animals, and random objects that MediaPipe misidentifies.
+function isPlausibleHumanFace(lm) {
+  try {
+    const lEye  = { x: (lm[33].x  + lm[133].x)  / 2, y: (lm[33].y  + lm[133].y)  / 2 };
+    const rEye  = { x: (lm[362].x + lm[263].x) / 2, y: (lm[362].y + lm[263].y) / 2 };
+    const nose  = lm[4];
+    const mL    = lm[61];
+    const mR    = lm[291];
+    const chin  = lm[152];
+    const top   = lm[10];
+
+    const eyeMidY   = (lEye.y + rEye.y) / 2;
+    const eyeSep    = Math.hypot(rEye.x - lEye.x, rEye.y - lEye.y);
+    const faceH     = Math.abs(chin.y - top.y);
+    const mouthMidX = (mL.x + mR.x) / 2;
+    const noseMidX  = nose.x;
+
+    // eyes must be above nose, nose above mouth, mouth above chin
+    if (nose.y  <= eyeMidY)   return false;
+    if (mL.y    <= nose.y)    return false;
+    if (chin.y  <= mL.y)      return false;
+    // eye separation must be 25–65% of face height (human proportions)
+    if (eyeSep < faceH * 0.25 || eyeSep > faceH * 0.65) return false;
+    // nose and mouth must be roughly centred horizontally between the eyes
+    const eyeLeft  = Math.min(lEye.x, rEye.x);
+    const eyeRight = Math.max(lEye.x, rEye.x);
+    if (noseMidX < eyeLeft - eyeSep * 0.3 || noseMidX > eyeRight + eyeSep * 0.3) return false;
+    if (mouthMidX < eyeLeft - eyeSep * 0.3 || mouthMidX > eyeRight + eyeSep * 0.3) return false;
+    // face must be taller than wide (portrait aspect)
+    const faceW = Math.abs(lm[234].x - lm[454].x);
+    if (faceH < faceW * 0.9) return false;
+
+    return true;
+  } catch { return false; }
 }
 
 function getEAR(lm, idx) {
@@ -515,6 +584,162 @@ function WarnBanner({ message }) {
   );
 }
 
+const GUIDE_DARK = "rgba(0,0,0,0.58)";
+
+// GuideBox — module-level + memoized. The four dark bars never change.
+// Only borderColor prop changes, which only affects the thin border div.
+const GuideBox = memo(function GuideBox({ borderColor }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+      <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: "34%",        background: GUIDE_DARK }}/>
+      <div style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: "34%",       background: GUIDE_DARK }}/>
+      <div style={{ position: "absolute", left: "34%", right: "34%", top: 0, height: "6%", background: GUIDE_DARK }}/>
+      <div style={{ position: "absolute", left: "34%", right: "34%", bottom: 0, height: "6%", background: GUIDE_DARK }}/>
+      <div style={{
+        position: "absolute", left: "34%", top: "6%", width: "32%", height: "88%",
+        border: `3px solid ${borderColor}`, borderRadius: "18px",
+        transition: "border-color 0.8s ease",
+      }}/>
+    </div>
+  );
+});
+
+const STATUS_MSGS = {
+  none:      "No face detected",
+  far:       "Face detected — move closer",
+  too_close: "Too close — move back",
+  good:      "Good — hold that position",
+};
+const STATUS_DOT_COLOR = {
+  none:      "rgba(255,255,255,0.35)",
+  far:       "rgba(255,255,255,0.35)",
+  too_close: "#ef4444",
+  good:      "#f59e0b",
+};
+const STATUS_BG = {
+  none:      "rgba(255,255,255,0.08)",
+  far:       "rgba(255,255,255,0.08)",
+  too_close: "rgba(239,68,68,0.15)",
+  good:      "rgba(245,158,11,0.15)",
+};
+const STATUS_BORDER = {
+  none:      "rgba(255,255,255,0.18)",
+  far:       "rgba(255,255,255,0.18)",
+  too_close: "rgba(239,68,68,0.45)",
+  good:      "rgba(245,158,11,0.45)",
+};
+
+// Memoized — only re-renders when distanceState changes, and even then CSS handles the colour fade.
+const StatusPill = memo(function StatusPill({ distanceState }) {
+  return (
+    <div style={{
+      display: "inline-flex", alignItems: "center", gap: "7px",
+      padding: "5px 14px", borderRadius: "999px",
+      background: STATUS_BG[distanceState]     || STATUS_BG.none,
+      border: `1px solid ${STATUS_BORDER[distanceState] || STATUS_BORDER.none}`,
+      transition: "background 0.8s ease, border-color 0.8s ease",
+    }}>
+      <div style={{
+        width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+        background: STATUS_DOT_COLOR[distanceState] || STATUS_DOT_COLOR.none,
+        transition: "background 0.8s ease",
+      }}/>
+      <span style={{ fontSize: "12px", fontWeight: "600", color: "rgba(255,255,255,0.9)" }}>
+        {STATUS_MSGS[distanceState] || STATUS_MSGS.none}
+      </span>
+    </div>
+  );
+});
+
+const BriefingScreen = memo(function BriefingScreen({ briefSlide, modelsReady, onSkip, onNext, onBegin }) {
+  const isLast = briefSlide === BRIEFING_SLIDES.length - 1;
+  const s = BRIEFING_SLIDES[briefSlide];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <p style={{ fontSize: "11px", fontWeight: "700", color: BRAND.primary, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 1px" }}>Step 4 of 8</p>
+          <h1 style={{ fontSize: "17px", fontWeight: "800", color: "#1b1c1c", margin: 0 }}>Identity Verification</h1>
+        </div>
+        <button onClick={onSkip} style={{ background: "none", border: "none", fontSize: "12px", color: modelsReady ? "#94a3b8" : "#d1d5db", cursor: modelsReady ? "pointer" : "wait", fontWeight: "500", padding: 0 }}>
+          Skip →
+        </button>
+      </div>
+      <div style={{
+        borderRadius: "16px", overflow: "hidden",
+        background: "#0a1628",
+        border: "1px solid rgba(255,255,255,0.06)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.35)",
+        display: "flex", flexDirection: "column",
+        height: "min(calc(100vw * 3/4 + 80px), calc(52svh + 80px))",
+        willChange: "transform",
+      }}>
+        <div key={briefSlide} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "28px 28px 12px", textAlign: "center", animation: "slideUp 0.3s ease", overflow: "hidden" }}>
+          <div style={{ width: "clamp(52px,12vw,68px)", height: "clamp(52px,12vw,68px)", borderRadius: "50%", background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "clamp(24px,5.5vw,34px)", lineHeight: 1, marginBottom: "clamp(10px,2.5vw,16px)", flexShrink: 0 }}>
+            {s.emoji}
+          </div>
+          <p style={{ fontSize: "clamp(15px,3.5vw,20px)", fontWeight: "800", color: "white", margin: "0 0 8px", lineHeight: 1.2, letterSpacing: "-0.3px" }}>{s.title}</p>
+          <p style={{ fontSize: "clamp(11px,2.5vw,13px)", color: "rgba(255,255,255,0.55)", margin: 0, lineHeight: 1.6, maxWidth: "260px" }}>{s.desc}</p>
+        </div>
+        <div style={{ padding: "12px 16px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
+            {Array.from({ length: BRIEFING_SLIDES.length }).map((_, i) => (
+              <div key={i} style={{ width: i === briefSlide ? "18px" : "6px", height: "6px", borderRadius: "999px", background: i === briefSlide ? "white" : "rgba(255,255,255,0.25)", transition: "all 0.3s ease" }}/>
+            ))}
+          </div>
+          <button
+            disabled={isLast && !modelsReady}
+            onClick={isLast ? onBegin : onNext}
+            style={{
+              width: "100%", height: "44px", borderRadius: "10px", border: "none", fontSize: "14px", fontWeight: "800",
+              color: "white", cursor: isLast && !modelsReady ? "wait" : "pointer",
+              background: isLast && !modelsReady ? "rgba(255,255,255,0.1)" : "linear-gradient(135deg,#1d4ed8,#1e40af)",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+              transition: "background 0.3s ease",
+            }}>
+            {isLast
+              ? (!modelsReady
+                  ? <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> <span>Preparing…</span></>
+                  : <span>Begin Verification →</span>)
+              : <><span>Next</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// Memoized bottom panel for baseline_intro — only re-renders when distanceState changes.
+// Keeping this separate stops the parent's 30fps MediaPipe loop from repainting the gradients.
+const BaselineIntroBottom = memo(function BaselineIntroBottom({ distanceState, onBegin }) {
+  return (
+    <div style={{
+      position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 3,
+      background: "linear-gradient(to top, rgba(8,20,50,0.92) 70%, transparent)",
+      padding: "24px 20px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px",
+      pointerEvents: distanceState === "good" ? "auto" : "none",
+    }}>
+      <div style={{ position: "relative", width: "100%", maxWidth: "220px", height: "44px", borderRadius: "10px", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.1)", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.15)", opacity: distanceState !== "good" ? 1 : 0, transition: "opacity 0.7s ease" }}/>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,#1d4ed8,#1e40af)", borderRadius: "10px", opacity: distanceState === "good" ? 1 : 0, transition: "opacity 0.7s ease" }}/>
+        <button
+          disabled={distanceState !== "good"}
+          onClick={onBegin}
+          style={{
+            position: "absolute", inset: 0, background: "transparent", border: "none",
+            borderRadius: "10px", fontSize: "14px", fontWeight: "800",
+            cursor: distanceState === "good" ? "pointer" : "not-allowed",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+          <span style={{ position: "absolute", color: "white", opacity: distanceState === "good" ? 1 : 0, transition: "opacity 0.7s ease", whiteSpace: "nowrap" }}>Begin Verification →</span>
+          <span style={{ position: "absolute", color: "rgba(255,255,255,0.4)", opacity: distanceState !== "good" ? 1 : 0, transition: "opacity 0.7s ease", whiteSpace: "nowrap" }}>Position your face to continue</span>
+        </button>
+      </div>
+    </div>
+  );
+});
+
 // main component
 export default function Verification() {
   const navigate  = useNavigate();
@@ -546,6 +771,16 @@ export default function Verification() {
   const earHistoryRef       = useRef([]);
   const missedFramesRef     = useRef(0);
   const liveDescRef         = useRef(null);
+  const lastDistanceStateRef    = useRef("none");
+  const lastFaceInOvalRef       = useRef(false);
+  const lastFaceDetectedRef     = useRef(false);
+  const pendingDistanceRef      = useRef("none");
+  const pendingDistanceCountRef = useRef(0);
+  const pendingOvalRef          = useRef(false);
+  const pendingOvalCountRef     = useRef(0);
+  const lastStatusMsgRef      = useRef("");
+  const lastHoldProgressRef   = useRef(0);
+  const lastTimerPctRef       = useRef(100);
   const headPathRef          = useRef([]);
   const independenceSamples  = useRef([]);
   const maxIndepHRef         = useRef(0); // highest iris-in-socket delta seen this session
@@ -570,6 +805,7 @@ export default function Verification() {
 
   const eyeSpecSamplesRef = useRef([]); // brightest pixel in eye region each frame
   const deepfaceResultRef = useRef(null); // { is_real, score } from the backend DeepFace check
+  const sharpFramesRef    = useRef([]); // { dataUrl, variance } — best frames for sharpest-frame selection
 
   const [step,                setStep]                = useState(STEP.BRIEFING);
   const [briefSlide,          setBriefSlide]          = useState(0);
@@ -626,22 +862,9 @@ export default function Verification() {
     return () => { cancelled = true; };
   }, []);
 
-  // start camera on the last briefing slide so it's already running when the user clicks Begin
-  useEffect(() => {
-    if (step !== STEP.BRIEFING) return;
-    const isLast = briefSlide === BRIEFING_SLIDES.length - 1;
-    if (!isLast || !faceapiLoadedRef.current) return;
-    // just face detection at this point — no full verification yet
-    phaseStateRef.current = "baseline_intro";
-    initMediaPipe();
-    return () => cleanup();
-  }, [briefSlide, step]);
-
   // reset all state when entering the camera step
   useEffect(() => {
     if (step !== STEP.CAMERA) return;
-    // camera might already be running from the briefing slide — don't restart it if so
-    const alreadyRunning = !!streamRef.current;
     challengesRef.current = pickChallenges();
     currentChallengeRef.current = 0;
     challengeResults.current    = [];
@@ -675,19 +898,14 @@ export default function Verification() {
     emaIndepHRef.current         = null;
     emaIndepVRef.current         = null;
     eyeSpecSamplesRef.current    = [];
+    sharpFramesRef.current       = [];
     setChallengeMsg(""); setChallengeId(null); setChallengeIndex(0); setTimerPct(100);
     setFaceInOval(false); setFaceDetected(false); setDistanceState("none"); setHoldProgress(0); setStatusMsg("");
     setCompletedChallenges([]);
     challengePreviewRef.current = false;
     setLastResult(null);
-    setPhaseSync("baseline_intro");
-    if (!alreadyRunning) {
-      initMediaPipe();
-    } else if (streamRef.current && cameraBoxVideoRef.current) {
-      // stream already running — just point the visible video at it
-      cameraBoxVideoRef.current.srcObject = streamRef.current;
-      cameraBoxVideoRef.current.play().catch(() => {});
-    }
+    setPhaseSync("baseline_camera");
+    initMediaPipe();
     return () => cleanup();
   }, [step]);
 
@@ -728,15 +946,20 @@ export default function Verification() {
     // collect gaze data even during overlays so we have enough samples by the end
     const cameraLive = ph === "baseline_intro" || ph === "baseline_camera" || ph === "challenge_camera" || ph === "challenge_intro" || ph === "challenge_done";
     if (!cameraLive) return;
+    const setDistanceSafe    = (val) => { if (lastDistanceStateRef.current !== val) { lastDistanceStateRef.current = val; setDistanceState(val); } };
+    const setFaceInOvalSafe  = (val) => { if (lastFaceInOvalRef.current   !== val) { lastFaceInOvalRef.current   = val; setFaceInOval(val);   } };
+    const setFaceDetectSafe  = (val) => { if (lastFaceDetectedRef.current   !== val) { lastFaceDetectedRef.current   = val; setFaceDetected(val); } };
+    const setStatusSafe      = (val) => { if (lastStatusMsgRef.current      !== val) { lastStatusMsgRef.current      = val; setStatusMsg(val); } };
+    const setProgressSafe    = (val) => { const r = Math.round(val); if (lastHoldProgressRef.current !== r) { lastHoldProgressRef.current = r; setHoldProgress(r); } };
+
     if (!results.multiFaceLandmarks?.length) {
       missedFramesRef.current++;
       stableFramesRef.current = 0;
-      setFaceInOval(false);
-      setFaceDetected(false);
-      setDistanceState("none");
+      setFaceInOvalSafe(false);
+      setFaceDetectSafe(false);
+      setDistanceSafe("none");
       if (missedFramesRef.current >= 8 && phaseRef.current === "hold") {
-        holdStartRef.current = null; setHoldProgress(0);
-        setStatusMsg("Centre your face in the oval");
+        holdStartRef.current = null; setProgressSafe(0);
       }
       return;
     }
@@ -759,29 +982,52 @@ export default function Verification() {
       };
     }
 
-    // coverage = face bounding box as a fraction of the total frame area
-    const MAX_COVERAGE = 0.38; // too close
-    const GOOD_MIN = MIN_COVERAGE; // 0.12
-    const GOOD_MAX = MAX_COVERAGE;
+    // Hysteresis: enter "good" at MIN_COVERAGE, leave only when coverage drops 3% below that.
+    const MAX_COVERAGE   = 0.45;
+    const ENTER_GOOD_MIN = MIN_COVERAGE;
+    const EXIT_GOOD_MIN  = MIN_COVERAGE - 0.03;
+    const currentlyGood  = lastDistanceStateRef.current === "good";
 
-    if (coverage < GOOD_MIN) {
-      stableFramesRef.current = 0; setFaceInOval(false); setFaceDetected(false);
-      setDistanceState("far");
-      if (phaseRef.current === "hold") { holdStartRef.current = null; setHoldProgress(0); }
+    if (coverage < (currentlyGood ? EXIT_GOOD_MIN : ENTER_GOOD_MIN)) {
+      stableFramesRef.current = 0; setFaceInOvalSafe(false); setFaceDetectSafe(false);
+      setDistanceSafe("far");
+      if (phaseRef.current === "hold") { holdStartRef.current = null; setProgressSafe(0); }
       return;
     }
 
     if (coverage > MAX_COVERAGE) {
-      stableFramesRef.current = 0; setFaceInOval(false); setFaceDetected(false);
-      setDistanceState("too_close");
-      if (phaseRef.current === "hold") { holdStartRef.current = null; setHoldProgress(0); }
+      stableFramesRef.current = 0; setFaceInOvalSafe(false); setFaceDetectSafe(false);
+      setDistanceSafe("too_close");
+      if (phaseRef.current === "hold") { holdStartRef.current = null; setProgressSafe(0); }
+      return;
+    }
+
+    if (!isPlausibleHumanFace(lm)) {
+      stableFramesRef.current = 0; setFaceInOvalSafe(false); setFaceDetectSafe(false);
+      setDistanceSafe("none");
+      if (phaseRef.current === "hold") { holdStartRef.current = null; setProgressSafe(0); }
       return;
     }
 
     stableFramesRef.current++;
-    setDistanceState("good");
-    setFaceInOval(true);
-    setFaceDetected(true);
+    setDistanceSafe("good");
+    setFaceInOvalSafe(true);
+    setFaceDetectSafe(true);
+
+    // sample a frame every 15 frames for sharpest-frame selection
+    if (stableFramesRef.current % 15 === 0 && video && lbpCanvasRef.current && lastBoxRef.current) {
+      try {
+        const sc = lbpCanvasRef.current;
+        sc.width = video.videoWidth; sc.height = video.videoHeight;
+        sc.getContext("2d").drawImage(video, 0, 0);
+        const variance = laplacianVariance(sc, lastBoxRef.current);
+        const url = sc.toDataURL("image/jpeg", 0.85);
+        sharpFramesRef.current.push({ dataUrl: url, variance });
+        // keep only the 5 sharpest frames seen so far
+        sharpFramesRef.current.sort((a, b) => b.variance - a.variance);
+        if (sharpFramesRef.current.length > 5) sharpFramesRef.current.length = 5;
+      } catch {}
+    }
 
     const nose = lm[NOSE_TIP];
     const li   = irisCenter(lm, LEFT_IRIS);
@@ -903,12 +1149,12 @@ export default function Verification() {
     if (ph !== "baseline_camera" && ph !== "challenge_camera") return;
 
     if (phaseRef.current === "hold") {
-      if (stableFramesRef.current < MIN_STABLE_FRAMES) { setStatusMsg("Hold your face steady…"); return; }
+      if (stableFramesRef.current < MIN_STABLE_FRAMES) { setStatusSafe("Hold your face steady…"); return; }
       if (!holdStartRef.current) holdStartRef.current = Date.now();
       const elapsed = (Date.now() - holdStartRef.current) / 1000;
       const pct = Math.min((elapsed / HOLD_SECONDS) * 100, 100);
-      setHoldProgress(pct);
-      if (pct < 33) setStatusMsg("Hold still…"); else if (pct < 66) setStatusMsg("Almost there…"); else setStatusMsg("Keep going…");
+      setProgressSafe(pct);
+      if (pct < 33) setStatusSafe("Hold still…"); else if (pct < 66) setStatusSafe("Almost there…"); else setStatusSafe("Keep going…");
       if (elapsed >= HOLD_SECONDS) {
         const lEyeW = eyeWidth(lm, LEFT_EYE), rEyeW = eyeWidth(lm, RIGHT_EYE);
         const earMean = earHistoryRef.current.reduce((a, b) => a + b, 0) / earHistoryRef.current.length;
@@ -928,7 +1174,7 @@ export default function Verification() {
           lbpCanvasRef.current.width = video.videoWidth; lbpCanvasRef.current.height = video.videoHeight;
           lbpCanvasRef.current.getContext("2d").drawImage(video, 0, 0);
         }
-        setHoldProgress(100);
+        setProgressSafe(100);
         captureFaceDescriptor();
 
         // bail early if skin motion is near-zero — almost certainly a photo
@@ -945,7 +1191,7 @@ export default function Verification() {
             snapCanvas.width = video.videoWidth; snapCanvas.height = video.videoHeight;
             snapCanvas.getContext("2d").drawImage(video, 0, 0);
             const frameB64 = snapCanvas.toDataURL("image/jpeg", 0.85);
-            api.post("/api/applicant/liveness-check", { frame: frameB64 })
+            api.post("/api/verify/deepface", { frame: frameB64 })
               .then(res => { deepfaceResultRef.current = res.data; })
               .catch(() => { deepfaceResultRef.current = null; });
           } catch {}
@@ -967,7 +1213,8 @@ export default function Verification() {
     if (!challenge) return;
 
     const elapsed = Date.now() - (challengeStartRef.current || Date.now());
-    setTimerPct(Math.max(0, (CHALLENGE_TIMEOUT - elapsed) / CHALLENGE_TIMEOUT) * 100);
+    const tpct = Math.round(Math.max(0, (CHALLENGE_TIMEOUT - elapsed) / CHALLENGE_TIMEOUT) * 100);
+    if (lastTimerPctRef.current !== tpct) { lastTimerPctRef.current = tpct; setTimerPct(tpct); }
 
     if (elapsed > CHALLENGE_TIMEOUT) { challengeLockedRef.current = true; consecutiveRef.current = 0; recordChallengeResult(false); return; }
 
@@ -1029,15 +1276,18 @@ export default function Verification() {
     if (Math.abs(independentH) > maxIndepHRef.current) maxIndepHRef.current = Math.abs(independentH);
 
     // iris-in-socket thresholds. real gaze peaks ~0.012–0.04; photo noise is ~0.001–0.003.
-    const IND_H  = 0.007;  // horizontal iris-in-socket — was 0.010, real gaze peaks ~0.014+
-    const IND_V  = 0.005;  // vertical iris-in-socket — was 0.007
-    // Diagonal: vector magnitude threshold
-    const DIAG_MAG = 0.007; // was 0.010
+    const IND_H  = 0.007;  // horizontal iris-in-socket
+    const IND_V  = 0.005;  // vertical iris-in-socket
+    const DIAG_MAG = 0.007;
+
+    // iris-to-nose vertical delta — much stronger up/down signal than socket alone
+    const dIrisNoseV = irisNoseV - sd.startIrisNoseV;
 
     const gazeL  = independentH >  IND_H;
     const gazeR  = independentH < -IND_H;
-    const gazeU  = independentV < -IND_V;
-    const gazeD  = independentV >  IND_V;
+    // up/down: use either iris-in-socket OR iris-to-nose (whichever fires)
+    const gazeU  = independentV < -IND_V || dIrisNoseV < -0.012;
+    const gazeD  = independentV >  IND_V || dIrisNoseV >  0.012;
     // magnitude so the user doesn't have to hit H and V exactly simultaneously
     const diagMag = Math.hypot(independentH, independentV);
     const diagTL  = diagMag > DIAG_MAG && independentH >  0.003 && independentV < -0.003;
@@ -1152,7 +1402,7 @@ export default function Verification() {
       emaGazeVRef.current  = null;
       emaIndepHRef.current = null;
       emaIndepVRef.current = null;
-      setTimerPct(100); setFaceInOval(false); setStatusMsg("Centre your face in the oval");
+      setTimerPct(100); setFaceInOval(false); setStatusMsg("Centre your face in the box");
       setPhaseSync("challenge_camera");
     }, 3000);
   };
@@ -1202,7 +1452,19 @@ export default function Verification() {
     try {
       if (video && video.readyState >= 2) {
         const snap = canvasRef.current;
-        if (snap) { snap.width = video.videoWidth; snap.height = video.videoHeight; snap.getContext("2d").drawImage(video, 0, 0); dataUrl = snap.toDataURL("image/jpeg", 0.92); }
+        if (snap) {
+          snap.width = video.videoWidth; snap.height = video.videoHeight;
+          snap.getContext("2d").drawImage(video, 0, 0);
+          // add the final frame to the sharp-frame pool then pick the sharpest overall
+          if (savedBox) {
+            const finalVariance = laplacianVariance(snap, savedBox);
+            sharpFramesRef.current.push({ dataUrl: snap.toDataURL("image/jpeg", 0.92), variance: finalVariance });
+            sharpFramesRef.current.sort((a, b) => b.variance - a.variance);
+          }
+          dataUrl = sharpFramesRef.current.length > 0
+            ? sharpFramesRef.current[0].dataUrl
+            : snap.toDataURL("image/jpeg", 0.92);
+        }
         if (lbp && savedBox) { lbp.width = video.videoWidth; lbp.height = video.videoHeight; lbp.getContext("2d").drawImage(video, 0, 0); }
       }
     } catch {}
@@ -1380,11 +1642,13 @@ export default function Verification() {
         challenges_passed:  challengesPassed, challenges_total: totalChallenges,
         risk_score: riskScore, needs_review: needsReview,
         fail_reason: reason,
+        sharpness_score: sharpFramesRef.current.length > 0 ? Math.round(sharpFramesRef.current[0].variance) : null,
       });
     } catch {}
 
     const deepfaceDisplayScore = dfResult?.score != null ? Math.round(dfResult.score * 100) : null;
-    setScores({ liveness, depth: depScore, faceMatch, challenge: chalScore, motion: Math.round(Math.min(motionScore / 45, 1) * 100), softScore, deepface: deepfaceDisplayScore });
+    const { bpm: finalBpm } = computeRppgScore(rppgSamplesRef.current, rppgFpsRef.current);
+    setScores({ liveness, depth: depScore, faceMatch, challenge: chalScore, motion: Math.round(Math.min(motionScore / 45, 1) * 100), softScore, deepface: deepfaceDisplayScore, bpm: finalBpm });
     setPassed(finalPass); setFailReason(reason); setAttempts(a => a + 1); setStep(STEP.RESULT);
   };
 
@@ -1398,8 +1662,11 @@ export default function Verification() {
   };
 
   const handleContinue = () => { window.scrollTo({ top: 0, behavior: "smooth" }); navigate("/apply/review"); };
+  const onBriefNext  = useCallback(() => setBriefSlide(p => p + 1), []);
+  const onBriefBegin = useCallback(() => setStep(STEP.CAMERA), []);
   const inCameraFlow   = [STEP.CAMERA, STEP.ANALYSING].includes(step);
   const canContinue    = step === STEP.RESULT; // always unlocked once results show — fail = officer review
+
 
   // Render
   return (
@@ -1407,9 +1674,11 @@ export default function Verification() {
       <style>{`
         @keyframes spin        { to { transform: rotate(360deg) } }
         @keyframes fadeIn      { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
-        @keyframes ovalPulse   { 0%,100% { opacity:1 } 50% { opacity:0.5 } }
+        @keyframes ovalPulse   { 0%,100% { opacity:1 } 50% { opacity:1 } }
         @keyframes challengeIn { from { opacity:0; transform:translateY(-10px) } to { opacity:1; transform:translateY(0) } }
         @keyframes slideUp     { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:translateY(0) } }
+        .status-pill { transition: background 0.6s ease, border-color 0.6s ease; }
+        .status-dot  { transition: background 0.6s ease; }
         @keyframes checkPop    { from { transform:scale(0.5); opacity:0 } to { transform:scale(1); opacity:1 } }
         @keyframes tutorialBar { from { width:100% } to { width:0% } }
         @keyframes flashGreen  { 0%{opacity:0} 20%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
@@ -1427,149 +1696,16 @@ export default function Verification() {
       {/* Hidden video — always mounted so stream doesn't restart between briefing and camera */}
       <video ref={videoRef} autoPlay muted playsInline style={{ display: "none" }} />
 
-      {/* BRIEFING — same camera-sized box, instructions inside */}
-      {step === STEP.BRIEFING && (() => {
-        const s = BRIEFING_SLIDES[briefSlide];
-        const isLast = briefSlide === BRIEFING_SLIDES.length - 1;
-        const modelsReady = faceapiLoadedRef.current;
-        return (
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <p style={{ fontSize: "11px", fontWeight: "700", color: BRAND.primary, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 1px" }}>Step 4 of 8</p>
-                <h1 style={{ fontSize: "17px", fontWeight: "800", color: "#1b1c1c", margin: 0 }}>Identity Verification</h1>
-              </div>
-              <button onClick={() => { if (modelsReady) setStep(STEP.CAMERA); }}
-                style={{ background: "none", border: "none", fontSize: "12px", color: modelsReady ? "#94a3b8" : "#d1d5db", cursor: modelsReady ? "pointer" : "wait", fontWeight: "500", padding: 0 }}>
-                Skip →
-              </button>
-            </div>
-
-            {/* Slide card — full flex column, no absolute positioning inside content */}
-            <div style={{
-              borderRadius: "16px", overflow: "hidden",
-              background: "linear-gradient(160deg,#0a1628 0%,#0f2044 60%,#0d1a3a 100%)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.35)",
-              display: "flex", flexDirection: "column",
-            }}>
-              {/* Content area — slides in */}
-              {isLast ? (
-                /* Last slide: live camera preview with face detection status */
-                <div key={briefSlide} style={{
-                  flex: 1, position: "relative", overflow: "hidden",
-                  height: "clamp(160px,28svh,220px)", display: "flex", alignItems: "stretch",
-                  animation: "slideUp 0.3s ease",
-                }}>
-                  {/* Live feed — uses cameraBoxVideoRef so the stream assignment in initMediaPipe reaches it */}
-                  <video
-                    ref={el => { cameraBoxVideoRef.current = el; if (el && streamRef.current) { el.srcObject = streamRef.current; el.play().catch(() => {}); } }}
-                    autoPlay muted playsInline
-                    style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", display: "block" }}
-                  />
-                  {/* Oval overlay */}
-                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-                    <div style={{
-                      width: "clamp(90px,22vw,130px)", height: "clamp(120px,30vw,175px)",
-                      border: `2.5px solid ${distanceState === "good" ? "#f59e0b" : distanceState === "too_close" ? "#ef4444" : "rgba(255,255,255,0.45)"}`,
-                      borderRadius: "50%",
-                      boxShadow: distanceState === "good"
-                        ? "0 0 0 2000px rgba(0,0,0,0.5), 0 0 14px rgba(245,158,11,0.35)"
-                        : "0 0 0 2000px rgba(0,0,0,0.55)",
-                      transition: "border-color 0.3s, box-shadow 0.4s",
-                    }}/>
-                  </div>
-                  {/* Status pill */}
-                  <div style={{ position: "absolute", bottom: 12, left: 0, right: 0, display: "flex", justifyContent: "center" }}>
-                    <div style={{
-                      display: "inline-flex", alignItems: "center", gap: "6px",
-                      padding: "5px 13px", borderRadius: "999px",
-                      background: distanceState === "good" ? "rgba(245,158,11,0.2)" : "rgba(0,0,0,0.55)",
-                      border: `1px solid ${distanceState === "good" ? "rgba(245,158,11,0.5)" : distanceState === "too_close" ? "rgba(239,68,68,0.5)" : "rgba(255,255,255,0.2)"}`,
-                      backdropFilter: "blur(6px)",
-                    }}>
-                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: distanceState === "good" ? "#f59e0b" : distanceState === "too_close" ? "#ef4444" : "rgba(255,255,255,0.35)" }}/>
-                      <span style={{ fontSize: "11px", fontWeight: "600", color: "rgba(255,255,255,0.9)" }}>
-                        {distanceState === "none"      && "Position your face in the oval"}
-                        {distanceState === "far"       && "Move closer to the camera"}
-                        {distanceState === "too_close" && "Too close — move back a little"}
-                        {distanceState === "good"      && "Face detected — ready to begin"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div key={briefSlide} style={{
-                  flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                  padding: "28px 28px 12px", textAlign: "center",
-                  animation: "slideUp 0.3s ease",
-                  minHeight: "clamp(160px,35svh,260px)",
-                }}>
-                  <div style={{
-                    width: "clamp(52px,12vw,68px)", height: "clamp(52px,12vw,68px)",
-                    borderRadius: "50%",
-                    background: "rgba(255,255,255,0.06)",
-                    border: "1.5px solid rgba(255,255,255,0.12)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: "clamp(24px,5.5vw,34px)", lineHeight: 1,
-                    marginBottom: "clamp(10px,2.5vw,16px)", flexShrink: 0,
-                  }}>
-                    {s.emoji}
-                  </div>
-                  <p style={{ fontSize: "clamp(15px,3.5vw,20px)", fontWeight: "800", color: "white", margin: "0 0 8px", lineHeight: 1.2, letterSpacing: "-0.3px" }}>
-                    {s.title}
-                  </p>
-                  <p style={{ fontSize: "clamp(11px,2.5vw,13px)", color: "rgba(255,255,255,0.55)", margin: 0, lineHeight: 1.6, maxWidth: "260px" }}>
-                    {s.desc}
-                  </p>
-                </div>
-              )}
-
-              {/* Dots + button row — always visible, never overlaps text */}
-              <div style={{ padding: "12px 16px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
-                <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
-                  {BRIEFING_SLIDES.map((_, i) => (
-                    <div key={i} style={{
-                      width: i === briefSlide ? "18px" : "6px", height: "6px", borderRadius: "999px",
-                      background: i === briefSlide ? "white" : "rgba(255,255,255,0.25)",
-                      transition: "all 0.3s ease",
-                    }}/>
-                  ))}
-                </div>
-                <button
-                  disabled={isLast && (!modelsReady || distanceState !== "good")}
-                  onClick={() => {
-                    if (isLast) { if (modelsReady && distanceState === "good") setStep(STEP.CAMERA); }
-                    else setBriefSlide(prev => prev + 1);
-                  }}
-                  style={{
-                    width: "100%", height: "44px",
-                    background: isLast
-                      ? (distanceState === "good" ? "linear-gradient(135deg,#22c55e,#16a34a)" : "rgba(255,255,255,0.1)")
-                      : `linear-gradient(135deg,${BRAND.primary},#1e40af)`,
-                    color: isLast && distanceState !== "good" ? "rgba(255,255,255,0.35)" : "white",
-                    border: isLast && distanceState !== "good" ? "1px solid rgba(255,255,255,0.15)" : "none",
-                    borderRadius: "10px", fontSize: "14px", fontWeight: "800",
-                    cursor: isLast && distanceState !== "good" ? "not-allowed" : "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-                    transition: "all 0.3s",
-                  }}>
-                  {isLast ? (
-                    !modelsReady
-                      ? <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> <span>Preparing…</span></>
-                      : distanceState === "good"
-                        ? <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Begin Verification</>
-                        : <>Position your face to continue</>
-                  ) : (
-                    <>Next <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {/* BRIEFING */}
+      {step === STEP.BRIEFING && (
+        <BriefingScreen
+          briefSlide={briefSlide}
+          modelsReady={faceapiLoadedRef.current}
+          onSkip={onBriefBegin}
+          onNext={onBriefNext}
+          onBegin={onBriefBegin}
+        />
+      )}
 
 
       {/* CAMERA */}
@@ -1604,291 +1740,107 @@ export default function Verification() {
             </div>
           </div>
 
-          {/* Camera box */}
+          {/* Camera card — same shell as BriefingScreen card, no flicker */}
           <div style={{
-            position: "relative", borderRadius: "14px", overflow: "hidden", background: "#0a1628",
-            aspectRatio: "4/3", maxHeight: "min(420px, 52svh)",
+            borderRadius: "16px", overflow: "hidden",
+            background: "#0a1628",
+            border: "1px solid rgba(255,255,255,0.06)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.35)",
+            display: "flex", flexDirection: "column",
+            height: "min(calc(100vw * 3/4 + 80px), calc(52svh + 80px))",
+            willChange: "transform",
           }}>
-            {/* Video — stream is on the always-mounted hidden video above; mirror it here via CSS */}
-            <video ref={cameraBoxVideoRef} autoPlay muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", display: "block" }}/>
+            {/* Video area — fills remaining height above the bottom panel */}
+            <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+            {/* Video — always mounted, never unmounts */}
+            <video ref={cameraBoxVideoRef} autoPlay muted playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", display: "block" }}/>
 
-            {/* BASELINE INTRO — camera live behind semi-transparent overlay */}
-            {phase === "baseline_intro" && (
-              <div style={{
-                position: "absolute", inset: 0,
-                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between",
-                padding: "0 0 0 0",
-              }}>
-                {/* Oval cutout — always visible so user can position themselves */}
-                <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-                  <div style={{
-                    width: "clamp(120px,28vw,175px)", height: "clamp(160px,38vw,235px)",
-                    border: `3px solid ${
-                      distanceState === "good" ? "#f59e0b"
-                      : distanceState === "too_close" ? "#ef4444"
-                      : "rgba(255,255,255,0.5)"
-                    }`,
-                    borderRadius: "50%",
-                    boxShadow: distanceState === "good"
-                      ? "0 0 0 2000px rgba(0,0,0,0.55), 0 0 18px rgba(245,158,11,0.4)"
-                      : distanceState === "too_close"
-                      ? "0 0 0 2000px rgba(0,0,0,0.55), 0 0 18px rgba(239,68,68,0.4)"
-                      : "0 0 0 2000px rgba(0,0,0,0.60)",
-                    transition: "border-color 0.3s, box-shadow 0.4s",
-                  }}/>
-                </div>
+            {/* ── GUIDE BOX — always mounted, colour changes via CSS transition only ── */}
+            <GuideBox borderColor={
+              phase === "baseline_camera"  ? (faceInOval && holdProgress > 0 ? "#22c55e" : faceInOval ? "#f59e0b" : distanceState === "too_close" ? "#ef4444" : "rgba(255,255,255,0.6)")
+            : phase === "challenge_camera" ? (faceInOval ? "#22c55e" : "rgba(255,255,255,0.75)")
+            : "rgba(255,255,255,0)"
+            }/>
 
-                {/* Top instruction banner */}
-                <div style={{
-                  position: "relative", zIndex: 2, width: "100%",
-                  background: "linear-gradient(to bottom, rgba(8,20,50,0.85) 70%, transparent)",
-                  padding: "14px 20px 24px", textAlign: "center",
-                }}>
-                  <p style={{ fontSize: "13px", fontWeight: "700", color: "white", margin: 0 }}>
-                    Position your face in the oval
-                  </p>
-                </div>
 
-                {/* Bottom status + button */}
-                <div style={{
-                  position: "relative", zIndex: 2, width: "100%",
-                  background: "linear-gradient(to top, rgba(8,20,50,0.92) 70%, transparent)",
-                  padding: "24px 20px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px",
-                }}>
-                  {/* Distance status pill */}
-                  <div style={{
-                    display: "inline-flex", alignItems: "center", gap: "7px",
-                    padding: "5px 14px", borderRadius: "999px",
-                    background: distanceState === "good" ? "rgba(245,158,11,0.18)"
-                      : distanceState === "too_close" ? "rgba(239,68,68,0.18)"
-                      : "rgba(255,255,255,0.1)",
-                    border: `1px solid ${
-                      distanceState === "good" ? "rgba(245,158,11,0.5)"
-                      : distanceState === "too_close" ? "rgba(239,68,68,0.5)"
-                      : "rgba(255,255,255,0.2)"
-                    }`,
-                    transition: "all 0.3s",
-                  }}>
-                    <div style={{
-                      width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
-                      background: distanceState === "good" ? "#f59e0b"
-                        : distanceState === "too_close" ? "#ef4444"
-                        : "rgba(255,255,255,0.4)",
-                    }}/>
-                    <span style={{ fontSize: "12px", fontWeight: "600", color: "rgba(255,255,255,0.9)" }}>
-                      {distanceState === "none"     && "No face detected"}
-                      {distanceState === "far"      && "Move closer to the camera"}
-                      {distanceState === "too_close" && "Too close — move back a little"}
-                      {distanceState === "good"     && "Good — hold that position"}
-                    </span>
-                  </div>
 
-                  <button
-                    disabled={distanceState !== "good"}
-                    onClick={() => {
-                      phaseRef.current = "hold";
-                      setPhaseSync("baseline_camera");
-                      setStatusMsg("Hold still…");
-                    }}
-                    style={{
-                      padding: "11px 32px",
-                      background: distanceState === "good"
-                        ? `linear-gradient(135deg,${BRAND.primary},#1e40af)`
-                        : "rgba(255,255,255,0.1)",
-                      color: distanceState === "good" ? "white" : "rgba(255,255,255,0.3)",
-                      border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: "800",
-                      cursor: distanceState === "good" ? "pointer" : "not-allowed",
-                      transition: "all 0.3s ease",
-                    }}>
-                    {distanceState === "good" ? "Begin Verification →" : "Waiting…"}
-                  </button>
-                </div>
+            {/* ── CHALLENGE INTRO overlay — full screen animation ── */}
+            <div style={{ position: "absolute", inset: 0, background: "#0a1628", pointerEvents: phase === "challenge_intro" ? "auto" : "none", opacity: phase === "challenge_intro" ? 1 : 0, transition: "opacity 0.3s ease", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", gap: "12px" }}>
+              <p style={{ fontSize: "10px", fontWeight: "700", color: "rgba(255,255,255,0.4)", margin: 0, textTransform: "uppercase", letterSpacing: "0.12em" }}>Challenge {challengeIndex + 1} of {challengesRef.current.length}</p>
+              <div style={{ width: "clamp(80px,20vw,120px)", height: "clamp(80px,20vw,120px)", background: "rgba(255,255,255,0.06)", borderRadius: "18px", padding: "8px", flexShrink: 0 }}>
+                {challengeId && <ChallengeAnim id={challengeId}/>}
               </div>
-            )}
+              <p style={{ fontSize: "clamp(20px,4.5vw,28px)", fontWeight: "900", color: "white", margin: 0, textAlign: "center", lineHeight: 1.1 }}>{challengeMsg}</p>
+              <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)", margin: 0, textAlign: "center" }}>Camera opens in a moment</p>
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "3px", background: "rgba(255,255,255,0.08)" }}>
+                <div key={`intro-${challengeIndex}`} style={{ height: "100%", background: `linear-gradient(90deg,${BRAND.primary},#22c55e)`, animation: "tutorialBar 3s linear forwards" }}/>
+              </div>
+            </div>
 
-            {/* BASELINE CAMERA — oval + hold progress, camera live */}
-            {phase === "baseline_camera" && (<>
-              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-                <div style={{
-                  width: "clamp(120px,28vw,175px)", height: "clamp(160px,38vw,235px)",
-                  border: `3px solid ${faceInOval && holdProgress > 0 ? "#22c55e" : faceInOval ? "#f59e0b" : distanceState === "too_close" ? "#ef4444" : "rgba(255,255,255,0.6)"}`,
-                  borderRadius: "50%",
-                  boxShadow: faceInOval
-                    ? `0 0 0 2000px rgba(0,0,0,0.40), 0 0 20px ${holdProgress > 0 ? "rgba(34,197,94,0.5)" : "rgba(245,158,11,0.4)"}`
-                    : "0 0 0 2000px rgba(0,0,0,0.55)",
-                  transition: "border-color 0.3s, box-shadow 0.4s",
-                }}/>
+            {/* ── CHALLENGE DONE overlay — green/red fullscreen ── */}
+            <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: phase === "challenge_done" && lastResult ? 1 : 0, transition: "opacity 0.2s ease", background: lastResult?.passed ? "rgb(5,40,15)" : "rgb(40,5,5)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px" }}>
+              <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: lastResult?.passed ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)", border: `2px solid ${lastResult?.passed ? "#22c55e" : "#ef4444"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {lastResult?.passed
+                  ? <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round"><path d="M5 12l5 5L20 7"/></svg>
+                  : <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>}
               </div>
-              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "10px 16px 16px", background: "linear-gradient(to top, rgba(8,20,50,0.92) 80%, transparent)", pointerEvents: "none" }}>
-                <p style={{ fontSize: "13px", fontWeight: "800", color: "white", margin: "0 0 8px", textAlign: "center" }}>
-                  {distanceState === "too_close" ? "Too close — move back"
-                    : distanceState === "far" || distanceState === "none" ? "Move closer to the camera"
-                    : holdProgress >= 100 ? "Standby…"
-                    : holdProgress > 0 ? "Hold still…"
-                    : "Hold still…"}
-                </p>
-                <div style={{ display: "flex", gap: "4px", marginBottom: "6px" }}>
-                  {[0, 25, 50, 75].map((threshold, i) => (
-                    <div key={i} style={{
-                      flex: 1, height: "6px", borderRadius: "999px",
-                      background: holdProgress > threshold ? "#22c55e" : "rgba(255,255,255,0.18)",
-                      transition: "background 0.3s ease",
-                    }}/>
-                  ))}
-                </div>
-                <p style={{ fontSize: "10px", color: holdProgress >= 100 ? "#86efac" : "rgba(255,255,255,0.4)", margin: 0, textAlign: "center", fontWeight: "600", transition: "color 0.3s" }}>
-                  {holdProgress >= 100 ? "Baseline captured ✓" : faceInOval ? `${Math.round(holdProgress)}% complete` : "Waiting for face…"}
-                </p>
-              </div>
-            </>)}
+              <p style={{ fontSize: "22px", fontWeight: "900", color: "white", margin: 0 }}>{lastResult?.passed ? "Well done!" : "Missed"}</p>
+              <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.55)", margin: 0 }}>{lastResult?.label}</p>
+            </div>
 
-            {/* CHALLENGE INTRO — full opaque overlay, animation + instruction */}
-            {phase === "challenge_intro" && (
-              <div style={{
-                position: "absolute", inset: 0, background: "linear-gradient(160deg,#0a1628,#0f2044)",
-                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                padding: "24px", gap: "12px", animation: "fadeIn 0.25s ease",
-              }}>
-                <p style={{ fontSize: "10px", fontWeight: "700", color: "rgba(255,255,255,0.4)", margin: 0, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                  Challenge {challengeIndex + 1} of {challengesRef.current.length}
-                </p>
-                <div style={{ width: "clamp(80px,20vw,120px)", height: "clamp(80px,20vw,120px)", background: "rgba(255,255,255,0.06)", borderRadius: "18px", padding: "8px", flexShrink: 0 }}>
-                  {challengeId && <ChallengeAnim id={challengeId}/>}
-                </div>
-                <p style={{ fontSize: "clamp(20px,4.5vw,28px)", fontWeight: "900", color: "white", margin: 0, textAlign: "center", lineHeight: 1.1 }}>{challengeMsg}</p>
-                <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)", margin: 0, textAlign: "center" }}>Watch the animation — camera opens in a moment</p>
-                {/* 3s countdown bar */}
-                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "3px", background: "rgba(255,255,255,0.08)" }}>
-                  <div key={`intro-${challengeIndex}`} style={{ height: "100%", background: `linear-gradient(90deg,${BRAND.primary},#22c55e)`, animation: "tutorialBar 3s linear forwards" }}/>
-                </div>
-              </div>
-            )}
-
-            {/* CHALLENGE CAMERA — oval + timer visible, camera live */}
-            {phase === "challenge_camera" && (<>
-              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-                <div style={{
-                  width: "clamp(120px,28vw,175px)", height: "clamp(160px,38vw,235px)",
-                  border: `3px solid ${faceInOval ? "#22c55e" : "rgba(255,255,255,0.75)"}`,
-                  borderRadius: "50%",
-                  boxShadow: faceInOval
-                    ? "0 0 0 2000px rgba(0,0,0,0.40), 0 0 20px rgba(34,197,94,0.5)"
-                    : "0 0 0 2000px rgba(0,0,0,0.50)",
-                  transition: "border-color 0.3s, box-shadow 0.4s",
-                  animation: !faceInOval ? "ovalPulse 2s ease-in-out infinite" : "none",
-                }}/>
-              </div>
-              {/* Instruction + timer bar at bottom */}
-              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "8px 12px 12px", background: "linear-gradient(to top, rgba(8,20,50,0.92) 85%, transparent)", pointerEvents: "none" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                  <div style={{ width: "36px", height: "36px", flexShrink: 0, background: "rgba(255,255,255,0.08)", borderRadius: "8px", padding: "3px" }}>
-                    {challengeId && <ChallengeAnim id={challengeId}/>}
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <p style={{ fontSize: "9px", fontWeight: "700", color: "rgba(255,255,255,0.45)", margin: "0 0 1px", textTransform: "uppercase", letterSpacing: "0.1em" }}>Do it now</p>
-                    <p style={{ fontSize: "clamp(13px,4vw,16px)", fontWeight: "900", color: "white", margin: 0, lineHeight: 1.1 }}>{challengeMsg}</p>
-                  </div>
-                </div>
-                {/* Colour-coded timer bar */}
-                <div style={{ background: "rgba(255,255,255,0.12)", borderRadius: "999px", height: "5px", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${timerPct}%`, borderRadius: "999px", background: timerPct > 60 ? "#22c55e" : timerPct > 30 ? "#f59e0b" : "#ef4444", transition: "width 0.15s linear, background 0.4s" }}/>
-                </div>
-              </div>
-              {/* Status pill */}
-              {statusMsg && (
-                <div style={{ position: "absolute", top: "12px", left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.60)", borderRadius: "999px", padding: "4px 14px", whiteSpace: "nowrap", backdropFilter: "blur(6px)" }}>
-                  <p style={{ fontSize: "11px", fontWeight: "700", color: faceInOval ? "#86efac" : "white", margin: 0 }}>{statusMsg}</p>
-                </div>
-              )}
-            </>)}
-
-            {/* PHOTO COUNTDOWN — shown after all challenges, before capture */}
-            {photoCountdown !== null && (
-              <div style={{
-                position: "absolute", inset: 0, zIndex: 20,
-                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                background: "rgba(0,0,0,0.45)",
-                gap: "10px",
-              }}>
-                {photoCountdown === "smile" ? (
-                  <div style={{ animation: "checkPop 0.3s ease", textAlign: "center" }}>
-                    <div style={{ fontSize: "52px", lineHeight: 1 }}>📸</div>
-                    <p style={{ fontSize: "20px", fontWeight: "900", color: "white", margin: "8px 0 0", letterSpacing: "-0.3px" }}>Photo taken</p>
-                  </div>
-                ) : (
-                  <>
-                    <p style={{ fontSize: "13px", fontWeight: "600", color: "rgba(255,255,255,0.7)", margin: 0, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                      Photo in
-                    </p>
-                    <div key={photoCountdown} style={{
-                      fontSize: "80px", fontWeight: "900", color: "white", lineHeight: 1,
-                      animation: "checkPop 0.35s ease",
-                      textShadow: "0 0 40px rgba(255,255,255,0.3)",
-                    }}>
-                      {photoCountdown}
-                    </div>
-                    <p style={{ fontSize: "13px", fontWeight: "600", color: "rgba(255,255,255,0.6)", margin: 0 }}>
-                      Look straight at the camera
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* CAMERA FLASH */}
-            {photoFlash && (
-              <div style={{
-                position: "absolute", inset: 0, zIndex: 21,
-                background: "white",
-                animation: "flashGreen 0.4s ease forwards",
-                pointerEvents: "none",
-              }} />
-            )}
-
-            {/* CHALLENGE DONE — full overlay: well done or missed */}
-            {phase === "challenge_done" && lastResult && (
-              <div style={{
-                position: "absolute", inset: 0,
-                background: lastResult.passed ? "linear-gradient(160deg,rgba(5,40,15,0.97),rgba(10,60,25,0.97))" : "linear-gradient(160deg,rgba(40,5,5,0.97),rgba(60,10,10,0.97))",
-                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                gap: "12px", animation: "fadeIn 0.2s ease",
-              }}>
-                <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: lastResult.passed ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)", border: `2px solid ${lastResult.passed ? "#22c55e" : "#ef4444"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {lastResult.passed
-                    ? <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round"><path d="M5 12l5 5L20 7"/></svg>
-                    : <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                  }
-                </div>
-                <p style={{ fontSize: "22px", fontWeight: "900", color: "white", margin: 0 }}>{lastResult.passed ? "Well done!" : "Missed"}</p>
-                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.55)", margin: 0 }}>{lastResult.label}</p>
-              </div>
-            )}
+            {/* ── CAMERA FLASH ── */}
+            <div style={{ position: "absolute", inset: 0, zIndex: 21, pointerEvents: "none", background: "white", opacity: photoFlash ? 1 : 0, transition: photoFlash ? "none" : "opacity 0.4s ease" }}/>
 
             <canvas ref={canvasRef}    style={{ display: "none" }}/>
             <canvas ref={lbpCanvasRef} style={{ display: "none" }}/>
-          </div>
+            </div>{/* end video area */}
 
-          {/* Completed challenge pills */}
-          {completedChallenges.length > 0 && (
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              {completedChallenges.map((c, i) => (
-                <div key={i} style={{
-                  display: "flex", alignItems: "center", gap: "5px",
-                  padding: "4px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: "700",
-                  background: c.passed ? "#f0fdf4" : "#fef2f2",
-                  border: `1px solid ${c.passed ? "#bbf7d0" : "#fecaca"}`,
-                  color: c.passed ? "#15803d" : "#dc2626",
-                  animation: "checkPop 0.3s ease",
-                }}>
-                  {c.passed
-                    ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round"><path d="M5 12l5 5L20 7"/></svg>
-                    : <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                  }
-                  {c.label}
+            {/* ── UNIFIED bottom panel — single fixed slot, content swaps ── */}
+            <div style={{ flexShrink: 0, background: "#0a1628", padding: "10px 14px 12px", boxSizing: "border-box" }}>
+              {phase === "baseline_camera" && <>
+                <p style={{ fontSize: "13px", fontWeight: "700", color: "white", margin: "0 0 8px", textAlign: "center" }}>
+                  {distanceState === "too_close" ? "Too close — move back" : distanceState === "far" ? "Face detected — move closer" : distanceState === "none" ? "No face detected" : holdProgress >= 100 ? "Standby…" : "Hold still…"}
+                </p>
+                <div style={{ display: "flex", gap: "4px" }}>
+                  {[0, 25, 50, 75].map((t, i) => <div key={i} style={{ flex: 1, height: "6px", borderRadius: "999px", background: holdProgress > t ? "#22c55e" : "rgba(255,255,255,0.18)", transition: "background 0.6s ease" }}/>)}
                 </div>
-              ))}
+              </>}
+              {phase === "challenge_camera" && <>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+                  <div style={{ width: "32px", height: "32px", flexShrink: 0, background: "rgba(255,255,255,0.08)", borderRadius: "8px", padding: "3px" }}>
+                    {challengeId && <ChallengeAnim id={challengeId}/>}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p style={{ fontSize: "9px", fontWeight: "700", color: "rgba(255,255,255,0.45)", margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.1em" }}>Challenge {challengeIndex + 1} of {challengesRef.current.length}</p>
+                    <p style={{ fontSize: "14px", fontWeight: "900", color: "white", margin: 0, lineHeight: 1.1 }}>{challengeMsg}</p>
+                  </div>
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.12)", borderRadius: "999px", height: "5px", overflow: "hidden" }}>
+                  <div style={{ height: "100%", borderRadius: "999px", width: `${timerPct}%`, background: timerPct > 60 ? "#22c55e" : timerPct > 30 ? "#f59e0b" : "#ef4444", transition: "width 0.15s linear, background 0.4s" }}/>
+                </div>
+              </>}
             </div>
-          )}
+          </div>{/* end card */}
+
+          {/* Completed challenge pills — fixed height so layout never shifts */}
+          <div style={{ height: "28px", display: "flex", gap: "6px", alignItems: "center" }}>
+            {completedChallenges.map((c, i) => (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: "5px",
+                padding: "4px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: "700",
+                background: c.passed ? "#f0fdf4" : "#fef2f2",
+                border: `1px solid ${c.passed ? "#bbf7d0" : "#fecaca"}`,
+                color: c.passed ? "#15803d" : "#dc2626",
+                animation: "checkPop 0.3s ease",
+              }}>
+                {c.passed
+                  ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round"><path d="M5 12l5 5L20 7"/></svg>
+                  : <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                }
+                {c.label}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

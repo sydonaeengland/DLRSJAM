@@ -136,8 +136,10 @@ export default function TransactionSelection() {
     setCreateError("");
     setExistingApp(null);
     try {
+      const consentAt = sessionStorage.getItem("dpa_consent_at") || null;
       const res = await api.post("/api/applicant/applications", {
         transaction_type: selected,
+        consent_given_at: consentAt,
       });
       update({
         transactionType:   selected,

@@ -6,10 +6,11 @@ import api from "../../services/api";
 import styles from "./OfficerDashboard.module.css";
 import coatOfArms from "../../assets/coat-of-arms.png";
 
-import NotifList     from "../../components/officer/NotifList";
-import ProfileDropdown from "../../components/officer/ProfileDropdown";
-import OverviewPage  from "../../components/officer/OverviewPage";
-import QueuePage     from "../../components/officer/QueuePage";
+import NotifList          from "../../components/officer/NotifList";
+import ProfileDropdown    from "../../components/officer/ProfileDropdown";
+import OverviewPage       from "../../components/officer/OverviewPage";
+import QueuePage          from "../../components/officer/QueuePage";
+import ChangePasswordModal from "../../components/officer/ChangePasswordModal";
 
 const Ico = ({ d, size = 16, stroke = "currentColor", sw = 2 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke}
@@ -63,6 +64,7 @@ export default function OfficerDashboard() {
   const [notifOpen,    setNotifOpen]    = useState(false);
   const [seenNotifs,   setSeenNotifs]   = useState(new Set());
   const [notifications, setNotifications] = useState([]);
+  const [showChangePw,     setShowChangePw]     = useState(false);
   const [signingOut,       setSigningOut]       = useState(false);
   const [showSigPrompt,    setShowSigPrompt]    = useState(false);
   const [sigPadEmpty,      setSigPadEmpty]      = useState(true);
@@ -237,6 +239,8 @@ export default function OfficerDashboard() {
   return (
     <div className={styles.root}>
 
+      {showChangePw && <ChangePasswordModal onClose={() => setShowChangePw(false)} />}
+
       {/* Signature prompt modal */}
       {showSigPrompt && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -398,7 +402,7 @@ export default function OfficerDashboard() {
               <RefreshIcon size={16} stroke={refreshing ? "#2563eb" : "#9ca3af"} className={refreshing ? styles.spinner : ""} />
             </button>
             <div className={styles.topbarDivider} />
-            <ProfileDropdown user={user} onLogout={handleLogout} />
+            <ProfileDropdown user={user} onLogout={handleLogout} onChangePassword={() => setShowChangePw(true)} />
           </div>
         </div>
 

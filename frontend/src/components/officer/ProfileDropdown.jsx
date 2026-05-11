@@ -23,7 +23,7 @@ function toTitleCase(str) {
   return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
-export default function ProfileDropdown({ user, onLogout }) {
+export default function ProfileDropdown({ user, onLogout, onChangePassword }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const initials = getInitials(user?.name || "");
@@ -74,7 +74,7 @@ export default function ProfileDropdown({ user, onLogout }) {
           </div>
           <div className={styles.actions}>
             <button className={styles.action} disabled><UserIcon size={14} stroke="currentColor" /> Edit profile</button>
-            <button className={styles.action} disabled><IdIcon   size={14} stroke="currentColor" /> Change password</button>
+            <button className={styles.action} onClick={() => { setOpen(false); onChangePassword?.(); }}><IdIcon size={14} stroke="currentColor" /> Change password</button>
             <div className={styles.divider} />
             <button className={`${styles.action} ${styles.danger}`} onClick={onLogout}>
               <LogoutIcon size={14} stroke="currentColor" /> Sign out

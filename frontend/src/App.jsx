@@ -17,6 +17,8 @@ import ApplicationRouter   from "./pages/applicant/ApplicationRouter"
 import ViewApplication     from "./pages/applicant/applications/ViewApplication"
 
 // Application flow steps
+import ConsentStep          from "./pages/applicant/apply/ConsentStep"
+import PrivacyNotice        from "./pages/applicant/PrivacyNotice"
 import TransactionSelection from "./pages/applicant/apply/TransactionSelection"
 import RetrieveRecord       from "./pages/applicant/apply/RetrieveRecord"
 import ConfirmTransaction   from "./pages/applicant/apply/ConfirmTransaction"
@@ -61,8 +63,12 @@ function App() {
               <ProtectedRoute role="applicant"><ViewApplication /></ProtectedRoute>
             } />
 
+            {/* Privacy notice — public */}
+            <Route path="/privacy"                    element={<PrivacyNotice />} />
+
             {/* Apply flow */}
-            <Route path="/apply"                      element={<ProtectedRoute role="applicant"><TransactionSelection /></ProtectedRoute>} />
+            <Route path="/apply"                      element={<ProtectedRoute role="applicant"><ConsentStep /></ProtectedRoute>} />
+            <Route path="/apply/select-transaction"   element={<ProtectedRoute role="applicant"><TransactionSelection /></ProtectedRoute>} />
             <Route path="/apply/retrieve-record"      element={<ProtectedRoute role="applicant"><RetrieveRecord /></ProtectedRoute>} />
             <Route path="/apply/confirm-transaction"  element={<ProtectedRoute role="applicant"><ConfirmTransaction /></ProtectedRoute>} />
             <Route path="/apply/document-upload"      element={<ProtectedRoute role="applicant"><DocumentUpload /></ProtectedRoute>} />
