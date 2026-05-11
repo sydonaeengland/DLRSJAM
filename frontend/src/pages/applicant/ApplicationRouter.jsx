@@ -1,3 +1,4 @@
+// Decides whether to show ViewApplication or the active apply flow based on the application status.
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAppState } from "../../context/ApplicationContext";

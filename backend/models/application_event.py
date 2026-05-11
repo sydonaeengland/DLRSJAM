@@ -1,3 +1,4 @@
+# ApplicationEvent model — append-only audit log for every status change or action on an application.
 from datetime import datetime, timezone
 from config.extensions import db
 

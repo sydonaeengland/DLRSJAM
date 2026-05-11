@@ -1,3 +1,4 @@
+// Application context — holds form state for the in-progress application flow. Persists the applicationId to sessionStorage so a page refresh doesn't lose it.
 import { createContext, useContext, useState } from "react";
 
 const ApplicationContext = createContext(null);
@@ -28,10 +29,29 @@ const INITIAL_STATE = {
   paymentConfirmed: false,
 };
 
+function getInitialState() {
+  const saved = sessionStorage.getItem("applicationId");
+  if (saved) {
+    return { ...INITIAL_STATE, applicationId: parseInt(saved, 10) };
+  }
+  return INITIAL_STATE;
+}
+
 export function ApplicationProvider({ children }) {
-  const [state, setState] = useState(INITIAL_STATE);
-  const update = (patch) => setState((prev) => ({ ...prev, ...patch }));
-  const reset = () => setState(INITIAL_STATE);
+  const [state, setState] = useState(getInitialState);
+
+  const update = (patch) => {
+    if (patch.applicationId != null) {
+      sessionStorage.setItem("applicationId", patch.applicationId);
+    }
+    setState((prev) => ({ ...prev, ...patch }));
+  };
+
+  const reset = () => {
+    sessionStorage.removeItem("applicationId");
+    setState(INITIAL_STATE);
+  };
+
   return (
     <ApplicationContext.Provider value={{ state, update, reset }}>
       {children}

@@ -1,3 +1,4 @@
+// Step 7 — applicant reviews all entered info before submitting.
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "../../../context/ApplicationContext";
@@ -98,7 +99,7 @@ export default function Review() {
 
   if (loading) {
     return (
-      <StepLayout currentStep={5}>
+      <StepLayout currentStep={4}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "40vh", gap: "12px" }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={BRAND.primary} strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 1s linear infinite" }}>
             <path d="M21 12a9 9 0 11-6.219-8.56" />
@@ -112,7 +113,7 @@ export default function Review() {
 
   if (error) {
     return (
-      <StepLayout currentStep={5}>
+      <StepLayout currentStep={4}>
         <InfoBanner type="error" message={error} />
       </StepLayout>
     );
@@ -121,10 +122,10 @@ export default function Review() {
   const isExpired = licence?.expiry_date ? new Date(licence.expiry_date) < new Date() : false;
 
   return (
-    <StepLayout currentStep={5}>
+    <StepLayout currentStep={4}>
       <div style={{ marginBottom: "28px" }}>
         <p style={{ fontSize: "12px", fontWeight: "700", color: BRAND.primary, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>
-          Step 6 of 9
+          Step 5 of 8
         </p>
         <h1 style={{ fontSize: "26px", fontWeight: "800", color: "#1b1c1c", margin: "0 0 6px", letterSpacing: "-0.4px" }}>
           Review Your Application

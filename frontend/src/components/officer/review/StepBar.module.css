@@ -1,0 +1,68 @@
+.bar {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 32px 36px;
+  background: white;
+  border-bottom: 1px solid #f3f4f6;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.trackRow {
+  display: flex;
+  align-items: center;
+}
+
+.trackItem {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.trackItemLast {
+  flex: 0 0 auto;
+}
+
+/* circle + absolutely-positioned label */
+.nodeWrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+}
+
+.node {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: none; display: flex; align-items: center;
+  justify-content: center; font-family: inherit;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+.nodeActive  { background: #6d28d9; box-shadow: 0 0 0 4px rgba(109,40,217,0.15); }
+.nodeDone    { background: #6d28d9; }
+.nodePending { background: #f1f5f9; }
+
+.nodeNum {
+  font-size: 12px; font-weight: 700;
+  color: #9ca3af;
+}
+
+.line {
+  flex: 1; height: 2px; background: #f1f5f9;
+  transition: background 0.3s;
+}
+.lineDone { background: #6d28d9; }
+
+/* label sits below the circle, centred on it */
+.label {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px; font-weight: 500; color: #9ca3af;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  text-align: center;
+}
+.labelActive { color: #6d28d9; font-weight: 700; }
+.labelDone   { color: #6d28d9; font-weight: 600; }

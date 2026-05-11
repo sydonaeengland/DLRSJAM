@@ -1,3 +1,4 @@
+// Wrapper used by each apply-flow step — consistent padding and background.
 import { useNavigate } from "react-router-dom";
 import { BRAND } from "../../config/theme";
 import coatOfArms from "../../assets/coat-of-arms.png";
@@ -6,7 +7,6 @@ import { useAppState } from "../../context/ApplicationContext";
 const STEPS = [
   "Transaction",
   "Retrieve Record",
-  "Changes",
   "Documents",
   "Verification",
   "Review",
@@ -39,8 +39,8 @@ export default function StepLayout({ children, currentStep, onExit }) {
 
   return (
     <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "#f5f6f8" }}>
-      <header style={{ background: "white", borderBottom: "1px solid #e9e8e7", position: "sticky", top: 0, zIndex: 40, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-        <div style={{ maxWidth: "960px", margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: "60px" }}>
+      <header style={{ background: "white", borderBottom: "1px solid #e9e8e7", position: "sticky", top: 0, zIndex: 40, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+        <div style={{ padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: "56px" }}>
           <button onClick={() => navigate("/dashboard")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", padding: 0 }}>
             <img src={coatOfArms} alt="" style={{ width: "28px", height: "28px", objectFit: "contain" }} />
             <div>
@@ -57,35 +57,39 @@ export default function StepLayout({ children, currentStep, onExit }) {
         </div>
       </header>
 
-      <div style={{ background: "white", borderBottom: "1px solid #f1f0ef", padding: "14px 24px" }}>
-        <div style={{ maxWidth: "960px", margin: "0 auto", display: "flex", alignItems: "center" }}>
+      <div style={{ background: "#f5f6f8", padding: "14px 24px 0" }}>
+        <div style={{ maxWidth: "960px", margin: "0 auto", background: "white", borderRadius: "12px", padding: "14px 24px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", display: "flex", alignItems: "center" }}>
           {STEPS.map((label, i) => {
             const done = i < currentStep;
             const active = i === currentStep;
             return (
               <div key={i} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? 1 : "none" }}>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", flexShrink: 0 }}>
                   <div style={{
-                    width: "24px", height: "24px", borderRadius: "50%", flexShrink: 0,
+                    width: "28px", height: "28px", borderRadius: "50%", flexShrink: 0,
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: "10px", fontWeight: "700",
-                    background: done || active ? BRAND.primary : "#f1f0ef",
+                    fontSize: "11px", fontWeight: "700",
+                    background: done ? BRAND.primary : active ? BRAND.primary : "#eef0f3",
                     color: done || active ? "white" : "#94a3b8",
-                    boxShadow: active ? `0 0 0 3px ${BRAND.primary}33` : "none",
+                    boxShadow: active ? `0 0 0 4px ${BRAND.primary}28` : "none",
                     transition: "all 0.2s",
                   }}>
                     {done ? (
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     ) : i + 1}
                   </div>
-                  <span style={{ fontSize: "8px", fontWeight: active ? "700" : "400", color: active ? BRAND.primary : done ? "#64748b" : "#94a3b8", whiteSpace: "nowrap" }}>
+                  <span style={{
+                    fontSize: "9px", fontWeight: active ? "700" : "500",
+                    color: active ? BRAND.primary : done ? "#475569" : "#b0b7c3",
+                    whiteSpace: "nowrap",
+                  }}>
                     {label}
                   </span>
                 </div>
                 {i < STEPS.length - 1 && (
-                  <div style={{ flex: 1, height: "2px", margin: "0 3px", marginBottom: "14px", background: done ? BRAND.primary : "#e9e8e7", transition: "background 0.3s" }} />
+                  <div style={{ flex: 1, height: "2px", margin: "0 4px 14px", background: done ? BRAND.primary : "#e9e8e7", transition: "background 0.3s" }} />
                 )}
               </div>
             );
@@ -94,7 +98,7 @@ export default function StepLayout({ children, currentStep, onExit }) {
       </div>
 
       <main style={{ flex: 1 }}>
-        <div style={{ maxWidth: "960px", margin: "0 auto", padding: "32px 24px 64px" }}>
+        <div style={{ maxWidth: "960px", margin: "0 auto", padding: "clamp(16px,4vw,32px) clamp(12px,4vw,24px) 64px" }}>
           {children}
         </div>
       </main>

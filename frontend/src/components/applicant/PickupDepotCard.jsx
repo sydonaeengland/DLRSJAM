@@ -1,6 +1,15 @@
+// Lets the applicant select which Tax Administration collectorate to pick up their new licence from.
 import { BRAND } from "../../config/theme";
 
-export default function PickupDepotCard({ collectorateName, collectorateAddress, mapQuery, approvedApp }) {
+export default function PickupDepotCard({ collectorateName, collectorateAddress, lat, lng, approvedApp }) {
+  const hasCoords = lat && lng;
+  const embedSrc = hasCoords
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.004},${lat - 0.003},${lng + 0.004},${lat + 0.003}&layer=mapnik&marker=${lat},${lng}`
+    : null;
+  const directionsHref = hasCoords
+    ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+    : `https://maps.google.com/?q=${encodeURIComponent(collectorateAddress ?? collectorateName ?? "Tax Administration Jamaica")}`;
+
   return (
     <div style={{
       background: "white", borderRadius: "12px", border: "1px solid #e9e8e7",
@@ -9,14 +18,16 @@ export default function PickupDepotCard({ collectorateName, collectorateAddress,
       {collectorateName ? (
         <>
           <div style={{ height: "110px", overflow: "hidden" }}>
-            <iframe
-              title="Pickup location"
-              width="100%" height="110"
-              style={{ border: 0, display: "block", filter: "grayscale(0.2)" }}
-              loading="lazy"
-              allowFullScreen
-              src={`https://maps.google.com/maps?q=${mapQuery}&output=embed&z=15`}
-            />
+            {embedSrc && (
+              <iframe
+                title="Pickup location"
+                width="100%" height="110"
+                style={{ border: 0, display: "block", filter: "grayscale(0.2)" }}
+                loading="lazy"
+                allowFullScreen
+                src={embedSrc}
+              />
+            )}
           </div>
           <div style={{ padding: "14px 16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
@@ -35,10 +46,12 @@ export default function PickupDepotCard({ collectorateName, collectorateAddress,
               <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 2px" }}>{collectorateAddress}</p>
             )}
             <p style={{ fontSize: "12px", color: "#94a3b8", margin: "0 0 10px" }}>
-              {approvedApp ? "Your physical card is ready for collection." : "Your registered collectorate office."}
+              {approvedApp
+                ? `Ref: ${approvedApp.application_number} · Collect your licence here once notified.`
+                : "Your pickup location for this application."}
             </p>
             <a
-              href={`https://maps.google.com/?q=${mapQuery}`}
+              href={directionsHref}
               target="_blank" rel="noopener noreferrer"
               style={{ fontSize: "13px", fontWeight: "600", color: BRAND.primary, textDecoration: "none", display: "flex", alignItems: "center", gap: "4px" }}
             >

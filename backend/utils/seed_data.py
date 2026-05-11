@@ -1,3 +1,4 @@
+# Runs all seed scripts in the correct order on startup.
 from utils.seeds.seed_collectorates import seed_collectorates
 from utils.seeds.seed_roles import seed_roles
 from utils.seeds.seed_staff import seed_staff
@@ -13,4 +14,4 @@ def seed_all():
     seed_licences()
     seed_applicants()
     seed_applications()
-    print("✅ All seed data loaded.")
+    print("All seed data loaded.")

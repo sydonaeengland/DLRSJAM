@@ -1,8 +1,9 @@
+// Back/Next navigation buttons at the bottom of each apply step.
 import { BRAND } from "../../config/theme";
 
 export default function StepNav({ onBack, onContinue, loading, continueLabel = "Continue", backLabel = "Back", continueDisabled = false }) {
   return (
-    <div style={{ display: "flex", gap: "12px", marginTop: "32px" }}>
+    <div style={{ display: "flex", gap: "12px", marginTop: "clamp(16px,4vw,32px)" }}>
       {onBack && (
         <button
           onClick={onBack}

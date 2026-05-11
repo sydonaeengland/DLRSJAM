@@ -1,3 +1,4 @@
+# LicenceRecord model — master licence data pulled from the TAJ system. Links to a user account once the applicant registers.
 from datetime import datetime, timezone
 from config.extensions import db
 
@@ -7,10 +8,10 @@ class LicenceRecord(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
-    # TRN is the natural identifier — exists before any user account
+    # trn exists before any user account — it's our natural identifier
     trn = db.Column(db.String(20), unique=True, nullable=False, index=True)
 
-    # ── Front of card ─────────────────────────────────────────────────────
+    # front of card
 
     # A = Motorcycle / B = Private / C = General
     licence_class = db.Column(db.String(2), nullable=False, default="B")
@@ -23,7 +24,7 @@ class LicenceRecord(db.Model):
 
     collectorate = db.Column(db.String(100), nullable=True)
 
-    # ── Back of card ──────────────────────────────────────────────────────
+    # back of card
 
     control_number = db.Column(db.String(30), nullable=True)
     first_issue_date = db.Column(db.Date, nullable=True)
@@ -32,9 +33,10 @@ class LicenceRecord(db.Model):
     # [{"date": "2024-03-15", "description": "Speeding offence"}]
     judicial_endorsements = db.Column(db.JSON, nullable=True)
 
-    # ── Personal details from TAJ system ─────────────────────────────────
+    # personal details pulled from the TAJ system
 
     firstname = db.Column(db.String(50), nullable=True)
+    middlename = db.Column(db.String(50), nullable=True)
     lastname = db.Column(db.String(50), nullable=True)
     date_of_birth = db.Column(db.Date, nullable=True)
     sex = db.Column(db.String(1), nullable=True)
@@ -44,8 +46,7 @@ class LicenceRecord(db.Model):
     address_line2 = db.Column(db.String(100), nullable=True)
     parish = db.Column(db.String(50), nullable=True)
 
-    # ── Link to user account ──────────────────────────────────────────────
-    # NULL until someone registers and claims this licence record
+    # null until someone registers and claims this record
 
     user_id_fk = db.Column(
         db.Integer,

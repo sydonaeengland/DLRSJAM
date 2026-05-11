@@ -1,3 +1,4 @@
+# Document model — each uploaded file attached to an application. Includes OCR results and the officer review status.
 from datetime import datetime, timezone
 from config.extensions import db
 
@@ -10,6 +11,7 @@ DOC_TYPES = [
     "proof_of_address",
     "trustee_letter",
     "licence_photo",
+    "verification_photo",
 ]
 
 ADDRESS_SUBTYPES = [
@@ -42,13 +44,21 @@ class Document(db.Model):
     file_path = db.Column(db.String(255), nullable=False)
     original_filename = db.Column(db.String(255), nullable=True)
 
-    # AI quality check — runs automatically on upload
+    # ai quality check runs automatically on upload
     ai_check_passed = db.Column(db.Boolean, nullable=True)
     ai_check_score = db.Column(db.Integer, nullable=True)
     ai_check_comment = db.Column(db.Text, nullable=True)
 
-    # Officer review — set manually by officer
-    # PENDING / APPROVED / RESUBMIT_REQUIRED / REJECTED
+    # ocr runs automatically on upload for ID documents
+    ocr_ran = db.Column(db.Boolean, default=False)
+    ocr_name = db.Column(db.String(150), nullable=True)
+    ocr_dob = db.Column(db.String(20), nullable=True)
+    ocr_id_number = db.Column(db.String(50), nullable=True)
+    ocr_confidence = db.Column(db.Float, nullable=True)
+    ocr_raw_text = db.Column(db.Text, nullable=True)
+    ocr_fields = db.Column(db.JSON, nullable=True)
+
+    # PENDING / APPROVED / RESUBMIT_REQUIRED / REJECTED — set by officer
     review_status = db.Column(db.String(30), default="PENDING")
     review_comment = db.Column(db.Text, nullable=True)
 

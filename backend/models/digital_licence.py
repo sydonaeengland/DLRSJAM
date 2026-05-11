@@ -1,3 +1,4 @@
+# DigitalLicence model — stores the generated digital licence data (photo, bg-removed image, issue date) once an application is approved.
 from datetime import datetime, timezone
 from config.extensions import db
 
@@ -20,7 +21,7 @@ class DigitalLicence(db.Model):
     )
 
     # Photo with background removed
-    photo_url = db.Column(db.String(500), nullable=True)
+    photo_url = db.Column(db.Text, nullable=True)
 
     # When DLRSJAM generated this digital licence
     generated_at = db.Column(

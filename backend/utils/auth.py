@@ -1,3 +1,4 @@
+# Auth decorators — require_officer, require_applicant, require_supervisor. Validates the JWT and attaches the user to the route function.
 import os
 import jwt
 from functools import wraps

@@ -1,3 +1,4 @@
+// Label + input group used inside apply step forms.
 export default function FieldGroup({ label, required, error, hint, children }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>

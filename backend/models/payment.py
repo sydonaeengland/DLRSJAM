@@ -1,3 +1,4 @@
+# Payment model — records the Stripe payment reference, amount, and confirmation timestamp for each application.
 from datetime import datetime, timezone
 from config.extensions import db
 

@@ -1,3 +1,4 @@
+# Auth routes — login, staff login, register (verify + complete), and /me for token refresh.
 from flask import Blueprint, request, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timezone, timedelta
@@ -16,16 +17,16 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 def generate_token(user):
     payload = {
         "user_id": user.id,
-        "email": user.email,
-        "roles": [r.name for r in user.roles],
-        "exp": datetime.now(timezone.utc) + timedelta(hours=24)
+        "email":   user.email,
+        "roles":   [r.name for r in user.roles],
+        "exp":     datetime.now(timezone.utc) + timedelta(hours=24)
     }
     return jwt.encode(payload, os.getenv("SECRET_KEY"), algorithm="HS256")
 
 
 def user_response(user, token):
-    profile = user.profile
-    officer = user.officerprofile
+    profile    = user.profile
+    officer    = user.officerprofile
     supervisor = user.supervisorprofile
 
     name = None
@@ -36,22 +37,33 @@ def user_response(user, token):
     elif supervisor:
         name = f"{supervisor.firstname} {supervisor.lastname}"
 
+    # works for both officer and supervisor
+    staff_profile = officer or supervisor
+    staff_id   = staff_profile.staff_id   if staff_profile else None
+    department = staff_profile.department if staff_profile else None
+    branch     = None
+    if staff_profile and staff_profile.branch:
+        branch = staff_profile.branch.name
+
     return {
         "token": token,
         "user": {
-            "id": user.id,
-            "email": user.email,
-            "name": name,
-            "roles": [r.name for r in user.roles],
-            "role": user.roles[0].name if user.roles else None,
+            "id":         user.id,
+            "email":      user.email,
+            "name":       name,
+            "role":       user.roles[0].name if user.roles else None,
+            "roles":      [r.name for r in user.roles],
+            "staff_id":   staff_id,
+            "department": department,
+            "branch":     branch,
         }
     }
 
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
-    data = request.get_json()
-    email = data.get("email", "").strip().lower()
+    data     = request.get_json()
+    email    = data.get("email", "").strip().lower()
     password = data.get("password", "")
 
     if not email or not password:
@@ -71,9 +83,9 @@ def login():
 
 @auth_bp.route("/register/verify", methods=["POST"])
 def register_verify():
-    data = request.get_json()
-    trn = data.get("trn", "").strip()
-    dob = data.get("date_of_birth", "").strip()
+    data           = request.get_json()
+    trn            = data.get("trn", "").strip()
+    dob            = data.get("date_of_birth", "").strip()
     control_number = data.get("control_number", "").strip()
 
     if not trn or not dob or not control_number:
@@ -101,30 +113,31 @@ def register_verify():
     return jsonify({
         "verified": True,
         "licence": {
-            "trn": licence.trn,
-            "firstname": licence.firstname,
-            "lastname": licence.lastname,
+            "trn":           licence.trn,
+            "firstname":     licence.firstname,
+            "middlename":    licence.middlename,
+            "lastname":      licence.lastname,
             "date_of_birth": str(licence.date_of_birth),
-            "sex": licence.sex,
+            "sex":           licence.sex,
             "licence_class": licence.licence_class,
-            "collectorate": licence.collectorate,
-            "expiry_date": str(licence.expiry_date),
-            "status": licence.status,
+            "collectorate":  licence.collectorate,
+            "expiry_date":   str(licence.expiry_date),
+            "status":        licence.status,
             "address_line1": licence.address_line1,
             "address_line2": licence.address_line2,
-            "parish": licence.parish,
+            "parish":        licence.parish,
         }
     }), 200
 
 
 @auth_bp.route("/register/complete", methods=["POST"])
 def register_complete():
-    data = request.get_json()
-    trn = data.get("trn", "").strip()
-    email = data.get("email", "").strip().lower()
-    password = data.get("password", "")
+    data             = request.get_json()
+    trn              = data.get("trn", "").strip()
+    email            = data.get("email", "").strip().lower()
+    password         = data.get("password", "")
     confirm_password = data.get("confirm_password", "")
-    phone = data.get("phone", "").strip()
+    phone            = data.get("phone", "").strip()
 
     if not all([trn, email, password, confirm_password]):
         return jsonify({"error": "All fields are required"}), 400
@@ -203,3 +216,29 @@ def me():
         return jsonify({"error": "Token expired"}), 401
     except jwt.InvalidTokenError:
         return jsonify({"error": "Invalid token"}), 401
+
+
+@auth_bp.route("/staff/login", methods=["POST"])
+def staff_login():
+    data     = request.get_json()
+    email    = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    user = User.query.filter_by(email=email).first()
+
+    if not user or not check_password_hash(user.password_hash, password):
+        return jsonify({"error": "Invalid staff credentials"}), 401
+
+    if not user.is_active:
+        return jsonify({"error": "Your account has been deactivated"}), 403
+
+    user_role = user.roles[0].name if user.roles else None
+
+    if user_role not in ("officer", "supervisor"):
+        return jsonify({"error": "Access denied. This portal is for TAJ staff only."}), 403
+
+    token = generate_token(user)
+    return jsonify(user_response(user, token)), 200

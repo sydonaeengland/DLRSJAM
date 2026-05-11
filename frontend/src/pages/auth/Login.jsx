@@ -1,3 +1,4 @@
+// Applicant login page — email + password form with the LeftPanel carousel.
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";

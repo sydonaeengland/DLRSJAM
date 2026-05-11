@@ -29,3 +29,8 @@ export const getMe = async () => {
   const res = await api.get("/api/auth/me")
   return res.data
 }
+
+export const staffLogin = async (email, password) => {
+  const res = await api.post("/api/auth/staff/login", { email, password })
+  return res.data
+}

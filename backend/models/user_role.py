@@ -1,3 +1,4 @@
+# UserRole join table — maps users to their roles.
 from config.extensions import db
 
 

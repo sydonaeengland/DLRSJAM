@@ -1,8 +1,12 @@
 Flask
 Flask-Cors
+rembg
 Flask-SQLAlchemy
 psycopg2-binary
 python-dotenv
+pytesseract
+Pillow
+opencv-python-headless
 alembic==1.10.2
 blinker==1.7.0
 click==8.1.7

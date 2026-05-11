@@ -1,3 +1,4 @@
+// Error message block shown under auth forms when something goes wrong.
 export default function AuthError({ message }) {
   if (!message) return null;
   return (

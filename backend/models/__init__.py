@@ -1,3 +1,4 @@
+# Imports all models so SQLAlchemy picks them up when create_all() runs.
 from .collectorate import Collectorate
 from .user import User
 from .role import Role
@@ -13,3 +14,4 @@ from .payment import Payment
 from .face_verification import VerificationResult
 from .digital_licence import DigitalLicence
 from .ita_correspondence import ITACorrespondence
+from .notification import Notification

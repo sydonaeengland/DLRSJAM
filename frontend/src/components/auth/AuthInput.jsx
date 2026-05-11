@@ -1,3 +1,4 @@
+// Styled text input used across all auth forms.
 import { useState } from "react";
 import { BRAND } from "../../config/theme";
 

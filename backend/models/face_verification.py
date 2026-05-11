@@ -1,3 +1,4 @@
+# VerificationResult model — stores all liveness and face-match scores from the applicant verification step.
 from datetime import datetime, timezone
 from config.extensions import db
 

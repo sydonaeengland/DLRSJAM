@@ -1,3 +1,4 @@
+// Image carousel shown on the left side of all auth pages (login, register).
 import coatOfArms from "../../assets/coat-of-arms.png";
 import { BRAND } from "../../config/theme";
 

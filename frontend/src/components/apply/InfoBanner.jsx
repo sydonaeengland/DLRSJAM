@@ -1,3 +1,4 @@
+// Blue info banner used to show context or instructions within a step.
 const VARIANTS = {
   info:    { bg: "#eff6ff", border: "#bfdbfe", color: "#1e40af", icon: "ℹ" },
   warning: { bg: "#fffbeb", border: "#fde68a", color: "#92400e", icon: "⚠" },

@@ -1,3 +1,4 @@
+# ITACorrespondence model — tracks ITA (Island Traffic Authority) clearance requests and responses for replacement applications.
 from datetime import datetime, timezone
 from config.extensions import db
 

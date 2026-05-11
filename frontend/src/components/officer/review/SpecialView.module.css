@@ -1,0 +1,30 @@
+.root {
+  min-height: 100vh; background: #f5f6f8;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.card {
+  background: white; border-radius: 20px; border: 1px solid #e9e8e7;
+  padding: 48px; max-width: 480px; width: 100%; text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.06);
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+}
+.iconWrap {
+  width: 64px; height: 64px; border-radius: 18px; border: 2px solid;
+  display: flex; align-items: center; justify-content: center;
+}
+.title { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
+.sub   { font-size: 14px; color: #6b7280; line-height: 1.6; }
+.commentBox {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 14px 18px; text-align: left; width: 100%;
+}
+.commentLabel { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+.commentVal   { font-size: 13px; color: #374151; font-style: italic; line-height: 1.5; }
+.backBtn {
+  margin-top: 8px; padding: 11px 24px; border-radius: 10px;
+  border: 1.5px solid #e2e8f0; background: white;
+  font-size: 13px; font-weight: 600; color: #374151;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
+}
+.backBtn:hover { background: #f5f6f8; }

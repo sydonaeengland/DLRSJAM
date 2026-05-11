@@ -1,3 +1,4 @@
+# User model — login credentials and relationships to all profile types.
 from datetime import datetime, timezone
 from config.extensions import db
 

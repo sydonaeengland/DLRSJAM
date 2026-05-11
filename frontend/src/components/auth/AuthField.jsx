@@ -1,3 +1,4 @@
+// Label + input wrapper for auth form fields.
 export default function AuthField({ label, right, children }) {
   return (
     <div>

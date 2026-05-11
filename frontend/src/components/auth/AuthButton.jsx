@@ -1,3 +1,4 @@
+// Primary submit button for auth forms — shows a spinner while loading.
 import { BRAND } from "../../config/theme";
 
 export default function AuthButton({ children, loading, loadingText, onClick, variant = "primary" }) {

@@ -1,3 +1,4 @@
+# Seeds the list of TAJ collectorate offices (name, code, parish).
 from config.extensions import db
 from models.collectorate import Collectorate
 
@@ -250,7 +251,17 @@ COLLECTORATE_DATA = [
 def seed_collectorates():
     with db.session.no_autoflush:
         for c in COLLECTORATE_DATA:
-            if not Collectorate.query.filter_by(code=c["code"]).first():
+            existing = Collectorate.query.filter_by(code=c["code"]).first()
+            if existing:
+                existing.name    = c["name"]
+                existing.full    = f"{c['code']} {c['name']}"
+                existing.parish  = c["parish"]
+                existing.address = c["address"]
+                existing.phone   = c["phone"]
+                existing.hours   = c["hours"]
+                existing.lat     = c["lat"]
+                existing.lng     = c["lng"]
+            else:
                 db.session.add(Collectorate(
                     code=c["code"],
                     name=c["name"],
@@ -264,4 +275,4 @@ def seed_collectorates():
                     is_active=True
                 ))
     db.session.commit()
-    print(f"✅ Seeded {len(COLLECTORATE_DATA)} collectorates.")
+    print(f"Seeded {len(COLLECTORATE_DATA)} collectorates.")

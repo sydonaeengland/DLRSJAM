@@ -1,3 +1,4 @@
+# Flask app factory — registers blueprints, initialises the DB, and runs seed data on startup.
 from flask import Flask, jsonify
 from dotenv import load_dotenv
 from pathlib import Path
@@ -7,7 +8,6 @@ import os
 
 from config.extensions import db
 
-# Load environment variables
 load_dotenv(dotenv_path=Path(__file__).with_name(".env"))
 
 print("DB_PORT =", os.getenv("DB_PORT"))
@@ -16,7 +16,6 @@ print("DB_PORT =", os.getenv("DB_PORT"))
 def create_app():
     app = Flask(__name__)
 
-    # Database configuration
     app.config["SQLALCHEMY_DATABASE_URI"] = (
         f"postgresql://{os.getenv('DB_USER')}:"
         f"{os.getenv('DB_PASSWORD')}@"
@@ -27,17 +26,17 @@ def create_app():
 
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-    # Initialize extensions
     db.init_app(app)
     CORS(app, origins=["http://localhost:5173"], supports_credentials=True)
-
-    # ── Blueprints ────────────────────────────────────────────────────────
+    
+    # register blueprints
     from routes.auth import auth_bp
     from routes.shared import shared_bp
     from routes.applicant import applicant_bp
     from routes.officer import officer_bp
     from routes.supervisor import supervisor_bp
     from routes.admin import admin_bp
+    from routes.notifications import notif_bp          
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(shared_bp)
@@ -45,8 +44,7 @@ def create_app():
     app.register_blueprint(officer_bp)
     app.register_blueprint(supervisor_bp)
     app.register_blueprint(admin_bp)
-
-    # ── Dev routes ────────────────────────────────────────────────────────
+    app.register_blueprint(notif_bp)                  
 
     @app.route("/health")
     def health():
@@ -66,7 +64,6 @@ def create_app():
             result[table] = columns
         return jsonify(result)
 
-    # ── Seed ──────────────────────────────────────────────────────────────
     with app.app_context():
         import models
         db.create_all()
@@ -76,8 +73,7 @@ def create_app():
     return app
 
 
-# Create Flask app
 app = create_app()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)

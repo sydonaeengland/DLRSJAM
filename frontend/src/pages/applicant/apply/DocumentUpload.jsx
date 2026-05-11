@@ -1,3 +1,4 @@
+// Step 5 — uploads required documents. Which docs are required depends on the transaction type.
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "../../../context/ApplicationContext";
@@ -15,7 +16,7 @@ function getRequiredDocs(transactionType, addressChangeRequested, proofOfAddress
     { key: "national_id_back",  label: "National ID",          side: "Back",  required: true },
   ];
 
-  if (transactionType !== "AMENDMENT" && !hasDigitalLicence) {
+  if (transactionType !== "AMENDMENT" && transactionType !== "REPLACEMENT" && !hasDigitalLicence) {
     docs.push(
       { key: "existing_licence_front", label: "Current Driver's Licence", side: "Front", required: true },
       { key: "existing_licence_back",  label: "Current Driver's Licence", side: "Back",  required: true }
@@ -33,12 +34,13 @@ function getRequiredDocs(transactionType, addressChangeRequested, proofOfAddress
   return docs;
 }
 
-async function assessDocumentQuality(file) {
+async function assessDocumentQuality(file, docKey) {
   if (file.type === "application/pdf") {
     return { quality: "good", score: 100, message: "PDF uploaded — quality check skipped." };
   }
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("doc_type", docKey);
   const res = await api.post(
     "/api/applicant/documents/quality-check",
     formData,
@@ -169,7 +171,7 @@ export default function DocumentUpload() {
     setQuality((p) => ({ ...p, [docKey]: null }));
 
     try {
-      const qualityResult = await assessDocumentQuality(file);
+      const qualityResult = await assessDocumentQuality(file, docKey);
       setQuality((p) => ({ ...p, [docKey]: qualityResult }));
 
       if (qualityResult.quality === "poor") {
@@ -238,8 +240,8 @@ export default function DocumentUpload() {
     navigate("/apply/verification");
   };
 
-  const stepNumber = state.addressChangeRequested === true ? 4 : 3;
-  const currentStep = state.addressChangeRequested === true ? 3 : 2;
+  const currentStep = 2;
+
 
   const groups = requiredDocs.reduce((acc, doc) => {
     if (!acc[doc.label]) acc[doc.label] = [];
@@ -265,7 +267,7 @@ export default function DocumentUpload() {
     <StepLayout currentStep={currentStep}>
       <div style={{ marginBottom: "28px" }}>
         <p style={{ fontSize: "12px", fontWeight: "700", color: BRAND.primary, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "6px" }}>
-          Step {stepNumber} of 9
+          Step 3 of 8
         </p>
         <h1 style={{ fontSize: "26px", fontWeight: "800", color: "#1b1c1c", margin: "0 0 6px", letterSpacing: "-0.4px" }}>
           Upload Documents
@@ -306,7 +308,7 @@ export default function DocumentUpload() {
                     {label === "Passport-style Photo"
                       ? "Plain background, face clearly visible, good lighting"
                       : label === "Police Report"
-                      ? "Optional but recommended for lost licence applications"
+                      ? "Optional — required if your licence was lost or stolen"
                       : docs.length > 1
                       ? "Upload both front and back"
                       : "Upload a clear photo or scan"}

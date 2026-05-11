@@ -1,3 +1,4 @@
+// Step 9 — Stripe card payment UI. Shows a card preview and processes the licence fee.
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "../../../context/ApplicationContext";
@@ -50,7 +51,7 @@ const stripeWrap = (hasError, focused) => ({
   borderRadius: "10px", background: "white", transition: "border-color 0.15s",
 });
 
-// ── Card preview ──────────────────────────────────────────────────────────────
+// Card preview
 function CardPreview({ cardholderName, cardNumber, expiry, focused }) {
   const displayName = cardholderName.trim() || "YOUR NAME";
   const displayNum = cardNumber || "•••• •••• •••• ••••";
@@ -96,7 +97,7 @@ function CardPreview({ cardholderName, cardNumber, expiry, focused }) {
   );
 }
 
-// ── Checkout form ─────────────────────────────────────────────────────────────
+// Checkout form
 function CheckoutForm({ clientSecret, amountDisplay, applicationId, onSuccess, licenceName }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -294,7 +295,7 @@ function CheckoutForm({ clientSecret, amountDisplay, applicationId, onSuccess, l
   );
 }
 
-// ── Main Payment page ─────────────────────────────────────────────────────────
+// Main Payment page
 export default function Payment() {
   const navigate = useNavigate();
   const { state, update } = useAppState();
@@ -311,7 +312,7 @@ export default function Payment() {
   };
   const transactionLabel = TRANSACTION_LABELS[state.transactionType] || "Licence Service";
   const licenceName = state.licenceRecord
-    ? `${state.licenceRecord.firstname} ${state.licenceRecord.lastname}`
+    ? [state.licenceRecord.firstname, state.licenceRecord.middlename, state.licenceRecord.lastname].filter(Boolean).join(" ")
     : "";
 
   useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, []);
@@ -341,10 +342,10 @@ export default function Payment() {
     }, 2500);
   };
 
-  // ── Processing screen ────────────────────────────────────────────────────
+  // Processing screen
   if (confirming) {
     return (
-      <StepLayout currentStep={7}>
+      <StepLayout currentStep={6}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: "0", textAlign: "center" }}>
           <style>{`
             @keyframes spin { to { transform: rotate(360deg); } }
@@ -401,11 +402,11 @@ export default function Payment() {
   }
 
   return (
-    <StepLayout currentStep={7}>
+    <StepLayout currentStep={6}>
       {/* Header */}
       <div style={{ marginBottom: "28px" }}>
         <p style={{ fontSize: "12px", fontWeight: "700", color: BRAND.primary, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>
-          Step 8 of 9
+          Step 7 of 8
         </p>
         <h1 style={{ fontSize: "26px", fontWeight: "800", color: "#1b1c1c", margin: "0 0 6px", letterSpacing: "-0.4px" }}>
           Secure Payment

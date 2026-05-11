@@ -1,3 +1,4 @@
+// Greeting banner at the top of the applicant dashboard — shows name, time of day, and quick stats.
 import { useNavigate } from "react-router-dom";
 import { BRAND } from "../../config/theme";
 

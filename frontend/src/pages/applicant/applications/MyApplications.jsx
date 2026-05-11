@@ -1,3 +1,4 @@
+// Lists all of the applicant's submitted applications with status pills and links to each one.
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { BRAND } from "../../../config/theme";
@@ -164,7 +165,7 @@ export default function MyApplications() {
         .app-card:hover { transform: translateY(-2px) !important; box-shadow: 0 8px 28px rgba(0,0,0,0.1) !important; }
       `}</style>
 
-      {/* ── Hero ── */}
+      {/* Hero */}
       <div style={{
         background: `linear-gradient(135deg, #0f172a 0%, ${BRAND.primaryDeep} 55%, ${BRAND.primary} 100%)`,
         position: "relative", overflow: "hidden", width: "100%",
@@ -210,7 +211,7 @@ export default function MyApplications() {
         </div>
       </div>
 
-      {/* ── Body ── */}
+      {/* Body */}
       <div style={{ maxWidth: "960px", margin: "0 auto", padding: "24px 24px 80px", width: "100%", boxSizing: "border-box", animation: "fadeUp 0.3s ease forwards" }}>
 
         {/* Filter tabs */}
@@ -328,7 +329,7 @@ function ApplicationCard({ app, navigate }) {
         boxSizing: "border-box",
       }}
     >
-      {/* ── Top row: icon / title / pill / chevron ── */}
+      {/* Top row: icon / title / pill / chevron */}
       <div style={{ padding: "18px 18px 0 16px", display: "flex", alignItems: "center", gap: "14px" }}>
         <div style={{
           width: "48px", height: "48px", borderRadius: "12px", flexShrink: 0,
@@ -363,7 +364,7 @@ function ApplicationCard({ app, navigate }) {
         </svg>
       </div>
 
-      {/* ── Meta: date · fee · location ── */}
+      {/* Meta: date · fee · location */}
       <div style={{ padding: "8px 18px 14px 16px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
         {dateStr && <span style={{ fontSize: "12px", color: "#64748b" }}>{dateStr}</span>}
         {fee && (
@@ -382,7 +383,7 @@ function ApplicationCard({ app, navigate }) {
         )}
       </div>
 
-      {/* ── Inline banners ── */}
+      {/* Inline banners */}
       {isAR && (
         <div style={{ margin: "0 18px 14px 16px", padding: "10px 14px", background: "#fef2f2", borderRadius: "8px", border: "1px solid #fecaca", display: "flex", gap: "8px", alignItems: "flex-start" }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0, marginTop: "1px" }}>
@@ -420,7 +421,7 @@ function ApplicationCard({ app, navigate }) {
         </div>
       )}
 
-      {/* ── Progress bar — flush to card bottom ── */}
+      {/* Progress bar — flush to card bottom */}
       <div style={{ borderTop: "1px solid #f1f5f9" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 18px 7px 16px" }}>
           <span style={{ fontSize: "12px", color: "#475569", fontWeight: "600" }}>{progressLabel}</span>

@@ -1,3 +1,4 @@
+// Coat of arms image component used in auth page headers.
 export default function CoatOfArms({ size = 56 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 80 80" fill="none">

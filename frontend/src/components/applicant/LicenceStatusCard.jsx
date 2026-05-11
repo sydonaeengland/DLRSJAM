@@ -1,3 +1,4 @@
+// Shows the current licence status (active, expired, etc.) on the applicant dashboard.
 import { useNavigate } from "react-router-dom";
 import { BRAND } from "../../config/theme";
 
@@ -64,20 +65,11 @@ export default function LicenceStatusCard({
         )}
       </div>
 
-      {/* Title + days countdown */}
+      {/* Title */}
       <div style={{ marginBottom: "8px" }}>
         <p style={{ fontSize: "16px", fontWeight: "800", color: "#1b1c1c", margin: "0 0 2px", letterSpacing: "-0.2px" }}>
           {isExpired ? "Licence Expired" : isExpiringSoon ? "Expiring Soon" : "Licence is Valid"}
         </p>
-        {/* Days counter — prominent when nearing expiry or valid */}
-        {daysDisplay !== null && (
-          <p style={{ fontSize: "26px", fontWeight: "800", color: accentColor, margin: "4px 0 0", letterSpacing: "-1px", lineHeight: 1 }}>
-            {daysDisplay}
-            <span style={{ fontSize: "13px", fontWeight: "600", color: accentColor, marginLeft: "5px", letterSpacing: "0" }}>
-              days remaining
-            </span>
-          </p>
-        )}
       </div>
 
       <p style={{ fontSize: "13px", color: isExpired ? "#991b1b" : isExpiringSoon ? "#92400e" : "#64748b", margin: "0 0 14px", lineHeight: 1.5 }}>

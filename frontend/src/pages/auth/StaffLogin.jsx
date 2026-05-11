@@ -1,192 +1,335 @@
-import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
-import { useAuth } from "../../context/AuthContext"
-import { login as loginService } from "../../services/authService"
-import AuthInput from "../../components/auth/AuthInput"
-import AuthButton from "../../components/auth/AuthButton"
-import CoatOfArms from "../../components/auth/CoatOfArms"
+// Shared login page for officers and supervisors.
+import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { staffLogin } from "../../services/authService";
+import coatOfArms from "../../assets/coat-of-arms.png";
+import { BRAND } from "../../config/theme";
+import styles from "./StaffLogin.module.css";
 
 export default function StaffLogin() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [rememberMe, setRememberMe] = useState(false)
-  const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  const navigate  = useNavigate();
+  const { login } = useAuth();
 
-  const { login } = useAuth()
-  const navigate = useNavigate()
+  const [email,    setEmail]    = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw,   setShowPw]   = useState(false);
+  const [error,    setError]    = useState("");
+  const [loading,  setLoading]  = useState(false);
+  const [mounted,  setMounted]  = useState(false);
+  const [authStep, setAuthStep] = useState(0); // 0=idle 1=verifying 2=granted
+
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
-  }, [])
+    const t = setTimeout(() => setMounted(true), 50);
+    return () => clearTimeout(t);
+  }, []);
 
   const handleLogin = async (e) => {
-    e.preventDefault()
-    setError("")
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    setAuthStep(1);
     try {
-      const data = await loginService(email, password)
-      const role = data.user.role
+      const data = await staffLogin(email, password);
+      const role = data.user.role;
+
       if (role !== "officer" && role !== "supervisor") {
-        setError("Access denied. This portal is for TAJ staff only.")
-        return
+        setAuthStep(0);
+        setLoading(false);
+        setError(
+          role === "admin"
+            ? "Administrators must use the admin portal to sign in."
+            : "Access denied. This portal is for TAJ staff only."
+        );
+        return;
       }
-      const storage = rememberMe ? localStorage : sessionStorage
-      storage.setItem("token", data.token)
-      storage.setItem("user", JSON.stringify(data.user))
-      login(data.user, data.token)
-      if (role === "supervisor") navigate("/supervisor")
-      else navigate("/officer")
+
+      sessionStorage.setItem("token", data.token);
+      sessionStorage.setItem("user", JSON.stringify(data.user));
+      login(data.user, data.token, true);
+      setAuthStep(2);
+
+      setTimeout(() => {
+        if (role === "supervisor") navigate("/supervisor");
+        else navigate("/officer");
+      }, 2800);
+
     } catch (err) {
-      setError(err.response?.data?.error || "Invalid staff credentials")
-    } finally {
-      setLoading(false)
+      setAuthStep(0);
+      setLoading(false);
+      setError(err.response?.data?.error || "Invalid staff credentials. Please try again.");
     }
-  }
+  };
 
-  const FormContent = () => (
-    <form onSubmit={handleLogin}>
-      {/* Warning banner */}
-      <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: "8px", padding: "10px 14px", marginBottom: "20px", display: "flex", gap: "8px", alignItems: "center" }}>
-        <span style={{ color: "#d97706" }}>⚠</span>
-        <span style={{ color: "#92400e", fontSize: "12px", fontWeight: "600" }}>Restricted Access — Authorized Personnel Only</span>
-      </div>
+  const FEATURES = [
+    { d: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",                                                                                       text: "Secure, role-based access control" },
+    { d: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2", text: "Review and process licence applications" },
+    { d: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",                              text: "Authorised TAJ personnel only" },
+  ];
 
-      <AuthInput label="Staff Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="officer@taj.gov.jm" required />
-      <AuthInput label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••••" required />
+  const INFO_CARDS = [
+    { d: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",                                                                                    title: "Encrypted",  sub: "TLS 1.3 in transit" },
+    { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75", title: "Role-based", sub: "Auto-routed by role" },
+  ];
 
-      {/* Remember me */}
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "20px", marginTop: "-8px" }}>
-        <input type="checkbox" id="rm-staff" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)}
-          style={{ width: "15px", height: "15px", accentColor: "#006B3F", cursor: "pointer" }} />
-        <label htmlFor="rm-staff" style={{ fontSize: "13px", color: "#666", cursor: "pointer" }}>Remember me</label>
-      </div>
+  return (
+    <div className={styles.root}>
 
-      {error && (
-        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", fontSize: "13px", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px" }}>
-          {error}
+      {/* Auth overlay */}
+      {authStep > 0 && (
+        <div className={styles.overlay}>
+          <div className={styles.overlayCard}>
+
+            {authStep === 1 && <div className={styles.scanLine} />}
+
+            <div className={styles.spinnerWrap}>
+              {authStep === 1 ? (
+                <>
+                  <svg width="88" height="88" viewBox="0 0 88 88" className={styles.ringOuter}>
+                    <circle cx="44" cy="44" r="40" fill="none" stroke={BRAND.primary} strokeWidth="2.5"
+                      strokeDasharray="62 190" strokeLinecap="round" />
+                  </svg>
+                  <svg width="88" height="88" viewBox="0 0 88 88" className={styles.ringInner}>
+                    <circle cx="44" cy="44" r="30" fill="none" stroke={`${BRAND.primary}25`} strokeWidth="1.5"
+                      strokeDasharray="22 166" strokeLinecap="round" />
+                  </svg>
+                  <div className={styles.crestCircle}>
+                    <img src={coatOfArms} alt="" className={styles.crestImg} />
+                  </div>
+                </>
+              ) : (
+                <div className={styles.checkCircle}>
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+              )}
+            </div>
+
+            <p className={styles.overlayTitle}>
+              {authStep === 1 ? "Authenticating" : "Access Granted"}
+            </p>
+            <p className={styles.overlaySub}>
+              {authStep === 1
+                ? <>Verifying your TAJ credentials<br />and establishing a secure session…</>
+                : <>Identity confirmed. Redirecting you<br />to your dashboard now…</>}
+            </p>
+
+            <div className={styles.progressWrap}>
+              {authStep === 1
+                ? <div className={styles.progressBar} />
+                : <div className={styles.progressGranted} />}
+            </div>
+
+            <div className={styles.overlayFooter}>
+              {authStep === 2 ? (
+                <div>
+                  {[
+                    { label: "Session",     badge: "ACTIVE", isLabel: true },
+                    { label: "Authority",   val: "Tax Administration Jamaica" },
+                    { label: "Encryption",  val: "TLS 1.3" },
+                    { label: "Established", val: new Date().toLocaleTimeString("en-JM", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) },
+                  ].map((row, i) => (
+                    <div key={i} className={styles.sessionRow}>
+                      {row.isLabel ? (
+                        <>
+                          <span className={styles.sessionLabel}>{row.label}</span>
+                          <span className={styles.sessionBadge}>{row.badge}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className={styles.sessionKey}>{row.label}</span>
+                          <span className={styles.sessionVal}>{row.val}</span>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={styles.securedRow}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                  <span className={styles.securedText}>SECURED · TAX ADMINISTRATION JAMAICA</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
-      <AuthButton loading={loading} loadingText="Authenticating..." color="#006B3F">Secure Sign In</AuthButton>
+      {/* Left panel */}
+      <div className={`${styles.left} ${mounted ? styles.mounted : ""}`}>
+        <div className={styles.orb1} />
+        <div className={styles.orb2} />
+        <div className={styles.orb3} />
+        <div className={styles.ring} />
+        <div className={styles.grid} />
 
-      <p style={{ textAlign: "center", fontSize: "12px", color: "#aaa", marginTop: "14px" }}>
-        Forgot credentials?{" "}
-        <span style={{ color: "#1a3a7a", fontWeight: "700", cursor: "pointer" }}>Contact IT Support</span>
-      </p>
-    </form>
-  )
+        <div className={styles.leftTopbar}>
+          <img src={coatOfArms} alt="" className={styles.leftLogoImg} />
+          <span className={styles.leftLogo}>DLRSJAM</span>
+        </div>
 
-  // ── MOBILE ──────────────────────────────────────────────────────────────
-  if (isMobile) {
-    return (
-      <div style={{ height: "100vh", width: "100vw", background: "#060d1f", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Segoe UI', Arial, sans-serif" }}>
-        <style>{`* { box-sizing: border-box; margin: 0; padding: 0; } input::placeholder { color: #bbb; } input { font-family: inherit; }`}</style>
-
-        {/* Top bar */}
-        <div style={{ background: "#0a1628", borderBottom: "1px solid rgba(255,215,0,0.12)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <CoatOfArms size={24} />
-            <span style={{ color: "white", fontWeight: "800", fontSize: "14px" }}>DLRS<span style={{ color: "#FFD700" }}>JAM</span></span>
+        <div className={styles.leftMain}>
+          <div className={styles.coaWrap}>
+            <div className={styles.coaPulse1} />
+            <div className={styles.coaPulse2} />
+            <div className={styles.coaCircle}>
+              <img src={coatOfArms} alt="Government of Jamaica" className={styles.coaImg} />
+            </div>
           </div>
-          <span style={{ color: "#FFD700", fontSize: "9px", letterSpacing: "2px" }}>STAFF PORTAL</span>
-        </div>
 
-        {/* Crawler */}
-        <div style={{ background: "rgba(255,215,0,0.07)", borderBottom: "1px solid rgba(255,215,0,0.1)", padding: "5px 0", overflow: "hidden", flexShrink: 0 }}>
-          <style>{`@keyframes crawl { from { transform: translateX(100vw); } to { transform: translateX(-100%); } }`}</style>
-          <div style={{ display: "inline-block", whiteSpace: "nowrap", color: "#FFD700", fontSize: "9px", letterSpacing: "2px", fontWeight: "bold", animation: "crawl 20s linear infinite" }}>
-            &nbsp;&nbsp;&nbsp;TAJ STAFF PORTAL — AUTHORIZED PERSONNEL ONLY &nbsp;•&nbsp; SESSION MONITORED &nbsp;•&nbsp; ALL ACTIONS LOGGED &nbsp;&nbsp;&nbsp;
+          <h1 className={styles.leftTitle}>Tax Administration<br />Jamaica</h1>
+          <p className={styles.leftSub}>Driver's Licence Renewal System</p>
+          <div className={styles.leftDivider} />
+
+          <div className={styles.featureList}>
+            {FEATURES.map((item, i) => (
+              <div key={i} className={styles.featureItem}>
+                <div className={styles.featureIcon}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={item.d} />
+                  </svg>
+                </div>
+                <p className={styles.featureText}>{item.text}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className={styles.statsRow}>
+            {[{ value: "14", label: "Collectorates" }, { value: "99.9%", label: "Uptime" }, { value: "24/7", label: "Monitoring" }].map((s, i) => (
+              <div key={i} className={styles.statCard}>
+                <p className={styles.statVal}>{s.value}</p>
+                <p className={styles.statLabel}>{s.label}</p>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Form */}
-        <div style={{ flex: 1, overflow: "auto", padding: "28px 24px" }}>
-          <h1 style={{ color: "white", fontSize: "24px", fontWeight: "800", marginBottom: "4px" }}>TAJ Staff Portal</h1>
-          <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "13px", marginBottom: "24px" }}>Licence Operations & Review System</p>
-          <div style={{ background: "white", borderRadius: "12px", padding: "24px" }}>
-            <FormContent />
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // ── DESKTOP ─────────────────────────────────────────────────────────────
-  return (
-    <div style={{ height: "100vh", width: "100vw", background: "#060d1f", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Segoe UI', Arial, sans-serif" }}>
-      <style>{`
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        @keyframes crawl { from { transform: translateX(100vw); } to { transform: translateX(-100%); } }
-        input::placeholder { color: #bbb; } input { font-family: inherit; }
-      `}</style>
-
-      {/* Top nav */}
-      <div style={{ background: "#0a1628", borderBottom: "1px solid rgba(255,215,0,0.12)", padding: "14px 32px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <CoatOfArms size={30} />
-          <span style={{ color: "white", fontWeight: "800", fontSize: "16px", letterSpacing: "1px" }}>DLRS<span style={{ color: "#FFD700" }}>JAM</span></span>
-        </div>
-        <span style={{ color: "#FFD700", fontSize: "10px", letterSpacing: "3px", fontWeight: "bold" }}>TAJ INTERNAL SYSTEM</span>
-      </div>
-
-      {/* Crawler */}
-      <div style={{ background: "rgba(255,215,0,0.07)", borderBottom: "1px solid rgba(255,215,0,0.1)", padding: "6px 0", overflow: "hidden", flexShrink: 0 }}>
-        <div style={{ display: "inline-block", whiteSpace: "nowrap", color: "#FFD700", fontSize: "10px", letterSpacing: "2.5px", fontWeight: "bold", animation: "crawl 22s linear infinite" }}>
-          &nbsp;&nbsp;&nbsp;TAJ STAFF PORTAL — AUTHORIZED PERSONNEL ONLY &nbsp;•&nbsp; SESSION MONITORED &nbsp;•&nbsp; ALL ACTIONS LOGGED &nbsp;•&nbsp; ENCRYPTION: AES-256 &nbsp;&nbsp;&nbsp;
+        <div className={styles.leftFooter}>
+          <p className={styles.leftFooterText}>© 2026 Tax Administration Jamaica · DLRSJAM v1.0</p>
         </div>
       </div>
 
-      {/* Background grid */}
-      <svg style={{ position: "fixed", inset: 0, width: "100%", height: "100%", opacity: 0.03, pointerEvents: "none", zIndex: 0 }}>
-        {Array.from({ length: 30 }).map((_, i) => <line key={`h${i}`} x1="0" y1={`${i * 3.33}%`} x2="100%" y2={`${i * 3.33}%`} stroke="#FFD700" strokeWidth="0.5" />)}
-        {Array.from({ length: 40 }).map((_, i) => <line key={`v${i}`} x1={`${i * 2.5}%`} y1="0" x2={`${i * 2.5}%`} y2="100%" stroke="#FFD700" strokeWidth="0.5" />)}
-      </svg>
+      {/* Right panel */}
+      <div className={`${styles.right} ${mounted ? styles.mounted : ""}`}>
 
-      {/* Main */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", position: "relative", zIndex: 1, overflow: "hidden" }}>
-        <h1 style={{ color: "white", fontSize: "clamp(22px,3vw,36px)", fontWeight: "800", marginBottom: "6px", textAlign: "center" }}>TAJ Staff Portal</h1>
-        <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "14px", marginBottom: "28px", textAlign: "center" }}>Licence Operations & Review System</p>
+        <div className={styles.rightTopbar}>
+          <div className={styles.statusWrap}>
+            <div className={styles.statusDot} />
+            <span className={styles.statusText}>All systems operational</span>
+          </div>
+          <span className={styles.portalLabel}>DLRSJAM Staff Portal</span>
+        </div>
 
-        {/* Two column card */}
-        <div style={{ display: "flex", borderRadius: "14px", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.5)", border: "1px solid rgba(255,215,0,0.12)", width: "100%", maxWidth: "680px" }}>
-          {/* Left dark panel */}
-          <div style={{ width: "40%", background: "#1a3a7a", padding: "32px 24px", display: "flex", flexDirection: "column", borderRight: "1px solid rgba(255,215,0,0.15)" }}>
-            <div style={{ color: "#FFD700", fontSize: "10px", letterSpacing: "3px", fontWeight: "bold", marginBottom: "20px" }}>AUTHORIZED ACCESS</div>
-            <div style={{ flex: 1 }}>
-              {[
-                "Review and process licence applications",
-                "Verify applicant documents and identity",
-                "Approve, return or escalate decisions",
-                "Coordinate ITA clearance requests",
-              ].map((item, i) => (
-                <div key={i} style={{ display: "flex", gap: "10px", marginBottom: "14px", alignItems: "flex-start" }}>
-                  <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#FFD700", marginTop: "5px", flexShrink: 0 }} />
-                  <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "12px", lineHeight: 1.5 }}>{item}</span>
+        <div className={styles.rightForm}>
+          <div className={styles.formInner}>
+
+            <div className={styles.formHeader}>
+              <h2 className={styles.formTitle}>Staff Access</h2>
+              <p className={styles.formSub}>Enter your TAJ credentials to access the portal.</p>
+              <div className={styles.badgeRow}>
+                <span className={styles.roleBadge}>Officer</span>
+                <span className={styles.roleBadge}>Supervisor</span>
+              </div>
+            </div>
+
+            <div className={styles.restrictedBanner}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span className={styles.restrictedText}>Restricted access — authorised personnel only</span>
+            </div>
+
+            <form className={styles.form} onSubmit={handleLogin}>
+
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>Staff Email</label>
+                <input
+                  className={styles.input}
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="firstname.lastname@taj.gov.jm"
+                  required
+                  autoComplete="email"
+                />
+              </div>
+
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>Password</label>
+                <div className={styles.pwWrap}>
+                  <input
+                    className={`${styles.input} ${styles.inputWithIcon}`}
+                    type={showPw ? "text" : "password"}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    required
+                    autoComplete="current-password"
+                  />
+                  <button type="button" className={styles.pwToggle} onClick={() => setShowPw(v => !v)}>
+                    {showPw ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                        <line x1="1" y1="1" x2="23" y2="23"/>
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className={styles.forgotRow}>
+                <span className={styles.forgotText}>
+                  Forgot password? <strong className={styles.forgotStrong}>Contact IT Support</strong>
+                </span>
+              </div>
+
+              {error && (
+                <div className={styles.errorBox}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: "1px" }}>
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <span className={styles.errorText}>{error}</span>
+                </div>
+              )}
+
+              <button type="submit" disabled={loading} className={styles.submitBtn}>
+                Sign in →
+              </button>
+            </form>
+
+            <div className={styles.infoCards}>
+              {INFO_CARDS.map((card, i) => (
+                <div key={i} className={styles.infoCard}>
+                  <div className={styles.infoCardIcon}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={BRAND.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d={card.d} />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className={styles.infoCardTitle}>{card.title}</p>
+                    <p className={styles.infoCardSub}>{card.sub}</p>
+                  </div>
                 </div>
               ))}
             </div>
-            <div style={{ paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#22c55e" }} />
-                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "10px", letterSpacing: "1px" }}>SESSION ENCRYPTION: AES-256</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Right white panel */}
-          <div style={{ flex: 1, background: "white", padding: "32px 28px" }}>
-            <FormContent />
+            <div className={styles.applicantRow}>
+              <span className={styles.applicantText}>Applying for a licence?</span>
+              <Link to="/login" className={styles.applicantLink}>Applicant portal →</Link>
+            </div>
+
           </div>
         </div>
-
-        <p style={{ color: "rgba(255,255,255,0.12)", fontSize: "10px", marginTop: "20px", letterSpacing: "1px" }}>
-          © 2026 Tax Administration Jamaica — Confidential
-        </p>
       </div>
     </div>
-  )
+  );
 }

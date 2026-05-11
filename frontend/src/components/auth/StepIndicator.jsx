@@ -1,3 +1,4 @@
+// Step dots shown on the register flow to indicate current progress.
 import { BRAND } from "../../config/theme";
 
 const STEPS = ["Verify", "Confirm", "Create"];

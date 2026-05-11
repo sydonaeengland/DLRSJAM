@@ -1,0 +1,60 @@
+.wrap { position: relative; }
+
+.btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 10px 5px 5px;
+  border-radius: 10px; border: 1px solid #e2e8f0;
+  background: white; cursor: pointer;
+  transition: all 0.15s; font-family: inherit; text-align: left;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.btn:hover    { background: #f8fafc; border-color: #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.btn.open     { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+
+.avatar {
+  border-radius: 8px;
+  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; color: white; flex-shrink: 0;
+}
+.avatar.sm { width: 30px; height: 30px; font-size: 11px; }
+.avatar.md { width: 40px; height: 40px; font-size: 14px; border-radius: 10px; }
+
+.name   { font-size: 12px; font-weight: 600; color: #111827; white-space: nowrap; }
+.branch { font-size: 10px; color: #9ca3af; white-space: nowrap; margin-top: 1px; }
+
+.chevron      { transition: transform 0.15s; }
+.chevron.open { transform: rotate(180deg); }
+
+.dropdown {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  background: white; border: 1px solid #e9e8e7;
+  border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.10);
+  z-index: 200; overflow: hidden; width: 256px;
+  animation: fadeUp 0.15s ease;
+}
+
+@keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+.header    { padding: 16px 18px; border-bottom: 1px solid #f3f4f6; }
+.headerInfo { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
+.fullName  { font-size: 14px; font-weight: 700; color: #111827; }
+.email     { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+
+.metaRows  { display: flex; flex-direction: column; gap: 7px; }
+.metaRow   { display: flex; align-items: center; gap: 8px; }
+.metaLabel { font-size: 11px; color: #9ca3af; min-width: 72px; }
+.metaVal   { font-size: 11px; font-weight: 600; color: #374151; }
+
+.actions { padding: 6px; }
+.action {
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  padding: 9px 12px; border-radius: 8px; border: none;
+  background: transparent; font-size: 13px; font-family: inherit;
+  cursor: pointer; transition: background 0.1s; color: #374151; text-align: left;
+}
+.action:hover:not(:disabled) { background: #f5f6f8; }
+.action:disabled { color: #d1d5db; cursor: not-allowed; }
+.action.danger   { color: #ef4444; font-weight: 600; }
+.action.danger:hover { background: #fef2f2; }
+.divider { margin: 4px 6px; border-top: 1px solid #f3f4f6; }

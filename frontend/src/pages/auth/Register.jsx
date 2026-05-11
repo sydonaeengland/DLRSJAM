@@ -1,3 +1,4 @@
+// Applicant registration flow — verify licence record, then set email and password.
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";

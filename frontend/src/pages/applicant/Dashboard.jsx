@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+// Applicant dashboard — shows the licence card, status, pickup info, and quick-action buttons.
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import LicenceCard from "../../components/applicant/LicenceCard";
-import DashboardGreeting from "../../components/applicant/DashboardGreeting";
 import LicenceStatusCard from "../../components/applicant/LicenceStatusCard";
 import PickupDepotCard from "../../components/applicant/PickupDepotCard";
 import { BRAND } from "../../config/theme";
@@ -38,23 +38,6 @@ const TRANSACTION_ICONS = {
   ),
 };
 
-const COLLECTORATE_ADDRESSES = {
-  "Kingston": "1-3 Swallowfield Road, Kingston 5",
-  "St. Andrew": "1-3 Swallowfield Road, Kingston 5",
-  "St. Catherine": "27 Independence Street, Spanish Town",
-  "Portmore": "Portmore Mall, Greater Portmore",
-  "St. Thomas": "High Street, Morant Bay",
-  "Portland": "Harbour Street, Port Antonio",
-  "St. Mary": "Main Street, Port Maria",
-  "St. Ann": "Albion Road, St. Ann's Bay",
-  "Trelawny": "Albert George Market, Falmouth",
-  "St. James": "22 Church Street, Montego Bay",
-  "Hanover": "Lucea Main Street, Lucea",
-  "Westmoreland": "Market Street, Savanna-la-Mar",
-  "St. Elizabeth": "Coke Drive, Black River",
-  "Manchester": "25 Hargreaves Ave, Mandeville",
-  "Clarendon": "Chapelton Road, May Pen",
-};
 
 function PhoneIcon({ size = 14 }) {
   return (
@@ -73,6 +56,176 @@ function MailIcon({ size = 14 }) {
   );
 }
 
+const DESIGN_W = 520;
+const DESIGN_H = Math.round(DESIGN_W / 1.586);
+const PDF_W = 1040;
+const PDF_H = Math.round(PDF_W / 1.586);
+
+function DownloadLicenceButton({ frontRef, backRef, licence }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+
+  const download = async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const [domToImage, { jsPDF: _jsPDF }] = await Promise.all([
+        import("dom-to-image-more").then(m => m.default),
+        import("jspdf"),
+      ]);
+
+      // Capture at 2× the design size for crisp output
+      const opts = { width: DESIGN_W, height: DESIGN_H, scale: 2 };
+      const [frontDataUrl, backDataUrl] = await Promise.all([
+        domToImage.toPng(frontRef.current, opts),
+        domToImage.toPng(backRef.current, opts),
+      ]);
+
+      const pdf = new _jsPDF({ orientation: "landscape", unit: "px", format: [PDF_W, PDF_H] });
+      pdf.addImage(frontDataUrl, "PNG", 0, 0, PDF_W, PDF_H);
+      pdf.addPage([PDF_W, PDF_H], "landscape");
+      pdf.addImage(backDataUrl, "PNG", 0, 0, PDF_W, PDF_H);
+      pdf.save(`dlrsjam-licence-${licence?.control_number ?? "card"}.pdf`);
+    } catch (e) {
+      console.error("PDF export failed", e);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={download}
+        disabled={loading}
+        style={{ width: "100%", background: loading ? "#94a3b8" : BRAND.primary, border: "none", borderRadius: "10px", padding: "10px 14px", fontSize: "13px", fontWeight: "700", color: "white", cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+      >
+        {loading ? (
+          <>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+            Generating PDF…
+          </>
+        ) : (
+          <>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download PDF
+          </>
+        )}
+      </button>
+      {error && <p style={{ fontSize: "11px", color: "#dc2626", margin: "4px 0 0", textAlign: "center" }}>Export failed — please try again.</p>}
+    </>
+  );
+}
+
+function AccountSettingsModal({ onClose }) {
+  const emailRef = useRef(null);
+  const [originalEmail, setOriginalEmail] = useState("");
+  const [email, setEmail]     = useState("");
+  const [phone, setPhone]     = useState("");
+  const [password, setPassword] = useState("");
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState(null);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    api.get("/api/applicant/profile").then(res => {
+      setEmail(res.data.email || "");
+      setOriginalEmail(res.data.email || "");
+      setPhone(res.data.phone || "");
+    }).catch(() => {});
+    setTimeout(() => emailRef.current?.focus(), 50);
+  }, []);
+
+  const emailChanging = email.trim().toLowerCase() !== originalEmail.toLowerCase();
+
+  const save = async () => {
+    setError(null);
+    setSuccess(false);
+    setSaving(true);
+    try {
+      const payload = { email, phone };
+      if (emailChanging) payload.password = password;
+      await api.patch("/api/applicant/profile", payload);
+      setOriginalEmail(email);
+      setPassword("");
+      setSuccess(true);
+    } catch (err) {
+      setError(err.response?.data?.error || "Something went wrong. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const canSave = email.trim() && (!emailChanging || password.trim());
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
+      onClick={onClose}>
+      <div style={{ background: "white", borderRadius: "16px", padding: "28px", maxWidth: "420px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
+        onClick={e => e.stopPropagation()}>
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+          <div>
+            <p style={{ fontSize: "16px", fontWeight: "800", color: "#111827", margin: 0 }}>Account Settings</p>
+            <p style={{ fontSize: "12px", color: "#9ca3af", margin: "2px 0 0" }}>Update your contact information</p>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div>
+            <label style={{ fontSize: "12px", fontWeight: "700", color: "#374151", display: "block", marginBottom: "6px" }}>Email address</label>
+            <input ref={emailRef} type="email" value={email} onChange={e => { setEmail(e.target.value); setSuccess(false); setError(null); }}
+              style={{ width: "100%", border: `1.5px solid ${emailChanging ? "#a78bfa" : "#e2e8f0"}`, borderRadius: "10px", padding: "10px 12px", fontSize: "14px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+          </div>
+          <div>
+            <label style={{ fontSize: "12px", fontWeight: "700", color: "#374151", display: "block", marginBottom: "6px" }}>Phone number</label>
+            <input type="tel" value={phone} onChange={e => { setPhone(e.target.value); setSuccess(false); }}
+              style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+          </div>
+
+          {emailChanging && (
+            <div style={{ padding: "14px", background: "#faf5ff", border: "1.5px solid #c4b5fd", borderRadius: "10px" }}>
+              <label style={{ fontSize: "12px", fontWeight: "700", color: "#6d28d9", display: "block", marginBottom: "6px" }}>
+                Confirm your current password <span style={{ color: "#dc2626" }}>*</span>
+              </label>
+              <p style={{ fontSize: "11px", color: "#7c3aed", margin: "0 0 8px" }}>Required to change your login email.</p>
+              <input type="password" value={password} onChange={e => { setPassword(e.target.value); setError(null); }}
+                placeholder="Enter your password"
+                style={{ width: "100%", border: "1.5px solid #c4b5fd", borderRadius: "8px", padding: "9px 12px", fontSize: "13px", fontFamily: "inherit", outline: "none", boxSizing: "border-box", background: "white" }} />
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "12px", padding: "10px 12px", background: "#fef2f2", borderRadius: "8px" }}>{error}</p>
+        )}
+        {success && (
+          <p style={{ fontSize: "12px", color: "#15803d", marginTop: "12px", padding: "10px 12px", background: "#f0fdf4", borderRadius: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12l5 5L20 7" /></svg>
+            Contact details updated successfully.
+          </p>
+        )}
+
+        <div style={{ display: "flex", gap: "8px", marginTop: "20px" }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1.5px solid #e2e8f0", background: "white", fontSize: "13px", fontWeight: "600", color: "#374151", cursor: "pointer", fontFamily: "inherit" }}>
+            {success ? "Close" : "Cancel"}
+          </button>
+          <button onClick={save} disabled={saving || !canSave}
+            style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "none", background: saving || !canSave ? "#94a3b8" : BRAND.primary, color: "white", fontSize: "13px", fontWeight: "700", cursor: saving || !canSave ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -80,14 +233,21 @@ export default function Dashboard() {
   const [licence, setLicence] = useState(null);
   const [applications, setApplications] = useState([]);
   const [digitalLicence, setDigitalLicence] = useState(null);
-  const [latestAppCollectorate, setLatestAppCollectorate] = useState(null);
+  const [pickupCollectorate, setPickupCollectorate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isFlipped, setIsFlipped] = useState(false);
+  const frontRef = useRef(null);
+  const backRef  = useRef(null);
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
 
   const fullName = user?.name || "Applicant";
   const firstName = fullName.split(" ")[0];
 
+  const applicationsRef = useRef([]);
+
   useEffect(() => {
+    let pollTimer = null;
+
     const fetchData = async () => {
       try {
         const [licRes, appRes, dlRes] = await Promise.all([
@@ -97,24 +257,72 @@ export default function Dashboard() {
         ]);
         setLicence(licRes.data);
         const apps = appRes.data.applications ?? [];
+        applicationsRef.current = apps;
         setApplications(apps);
-        setDigitalLicence(dlRes.data.digital_licence ?? null);
+
+        const dl = dlRes.data.digital_licence ?? null;
+        setDigitalLicence(dl);
+
+        // Backfill in background — don't block initial render
+        if (apps.some(a => a.status === "APPROVED") && (!dl || !dl.photo_url)) {
+          api.post("/api/applicant/digital-licence/backfill").then(() =>
+            Promise.all([
+              api.get("/api/applicant/licence"),
+              api.get("/api/applicant/digital-licence/latest"),
+            ]).then(([licRes2, dlRes2]) => {
+              setLicence(licRes2.data);
+              setDigitalLicence(dlRes2.data.digital_licence ?? null);
+            })
+          ).catch(() => {});
+        }
         const latestApp = apps
           .filter(a => a.status !== "DRAFT" && a.collectorate)
           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-        if (latestApp?.collectorate) setLatestAppCollectorate(latestApp.collectorate);
+        if (latestApp) {
+          setPickupCollectorate({
+            full:    latestApp.collectorate,
+            address: latestApp.collectorate_address,
+            lat:     latestApp.collectorate_lat,
+            lng:     latestApp.collectorate_lng,
+          });
+        }
       } catch (err) {
         console.error(err);
       } finally {
         setLoading(false);
       }
+
+      // Poll every 30s while there's an active in-progress application
+      const IN_PROGRESS = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED", "WAITING_ON_APPLICANT", "ACTION_REQUIRED", "PENDING_ITA", "ESCALATED", "PENDING_SUPERVISOR_APPROVAL"];
+      const hasActive = applicationsRef.current.some(a => IN_PROGRESS.includes(a.status));
+      if (hasActive) {
+        pollTimer = setTimeout(fetchData, 30000);
+      }
     };
+
     fetchData();
+
+    const onFocus = () => {
+      clearTimeout(pollTimer);
+      fetchData();
+    };
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      clearTimeout(pollTimer);
+      window.removeEventListener("focus", onFocus);
+    };
   }, []);
 
-  const displayLicence = digitalLicence
-    ? { ...licence, photo_url: digitalLicence.photo_url, generated_at: digitalLicence.generated_at }
-    : licence;
+  const signatureImage = applications
+    .filter(a => a.signature_image)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]?.signature_image ?? null;
+
+  const displayLicence = {
+    ...licence,
+    ...(digitalLicence ? { photo_url: digitalLicence.photo_url, generated_at: digitalLicence.generated_at } : {}),
+    ...(signatureImage ? { signature_image: signatureImage } : {}),
+  };
 
   const today = new Date();
   const expiryDate = displayLicence?.expiry_date ? new Date(displayLicence.expiry_date) : null;
@@ -133,14 +341,12 @@ export default function Dashboard() {
   const draftApp = applications.find(a => a.status === "DRAFT");
   const approvedApp = applications.find(a => a.status === "APPROVED");
 
-  const rawCollectorate = latestAppCollectorate || displayLicence?.collectorate || null;
-  const collectorateName = rawCollectorate
-    ? rawCollectorate.replace(/^\d+\s*/, "").split("(")[0].trim()
+  const collectorateName = pickupCollectorate
+    ? pickupCollectorate.full.replace(/^\d+\s*/, "").split("(")[0].trim()
     : null;
-  const collectorateAddress = collectorateName ? COLLECTORATE_ADDRESSES[collectorateName] : null;
-  const mapQuery = encodeURIComponent(
-    collectorateAddress ?? (collectorateName ? collectorateName + " Tax Administration Jamaica" : "Tax Administration Jamaica Kingston")
-  );
+  const collectorateAddress = pickupCollectorate?.address ?? null;
+  const collectorateLat = pickupCollectorate?.lat ?? null;
+  const collectorateLng = pickupCollectorate?.lng ?? null;
 
   if (loading) {
     return (
@@ -157,60 +363,166 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "32px 24px 64px" }}>
+      {/* Greeting banner */}
+      <div style={{ background: "#f5f6f8", borderBottom: "1px solid #e9e8e7" }}>
+        <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "20px 32px" }}>
+          <div style={{
+            background: "linear-gradient(135deg, #1e40af 0%, #2563eb 55%, #3b82f6 100%)",
+            borderRadius: "16px",
+            padding: "24px 28px",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: "20px", flexWrap: "wrap",
+            boxShadow: "0 4px 20px rgba(37,99,235,0.25)",
+            position: "relative", overflow: "hidden",
+          }}>
+            {/* subtle radial glow top-right */}
+            <div style={{ position: "absolute", top: -40, right: -40, width: 200, height: 200, borderRadius: "50%", background: "rgba(255,255,255,0.07)", pointerEvents: "none" }} />
 
+            <div>
+              <p style={{ fontSize: "11px", fontWeight: "600", color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 4px" }}>
+                {new Date().toLocaleDateString("en-JM", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              </p>
+              <h1 style={{ fontSize: "22px", fontWeight: "800", color: "white", letterSpacing: "-0.4px", margin: "0 0 10px" }}>
+                {new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening"}, {firstName}
+              </h1>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {expiryDate && (
+                  <span style={{
+                    fontSize: "12px", fontWeight: "600",
+                    color: isExpired ? "#fca5a5" : isExpiringSoon ? "#fde68a" : "rgba(255,255,255,0.75)",
+                    background: "rgba(255,255,255,0.1)",
+                    border: `1px solid ${isExpired ? "rgba(252,165,165,0.4)" : isExpiringSoon ? "rgba(253,230,138,0.4)" : "rgba(255,255,255,0.15)"}`,
+                    borderRadius: "6px", padding: "3px 10px",
+                    display: "flex", alignItems: "center", gap: "5px",
+                  }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    {isExpired ? "Licence expired" : `Expires ${expiryLabel}`}
+                  </span>
+                )}
+                {licence?.licence_class && (
+                  <span style={{ fontSize: "12px", fontWeight: "600", color: "rgba(255,255,255,0.75)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "6px", padding: "3px 10px" }}>
+                    Class {licence.licence_class}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {draftApp && (
+                <button onClick={() => navigate(`/apply?resume=${draftApp.id}`)}
+                  style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "1px solid rgba(255,255,255,0.25)", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  Resume Application
+                </button>
+              )}
+              {(isExpired || isExpiringSoon) && (
+                <button onClick={() => navigate("/apply")}
+                  style={{ background: "white", color: "#1e40af", border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
+                  {isExpired ? "Renew Now" : "Renew Licence"}
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "28px 32px 64px" }}>
+
+        {/* Action required banner */}
         {actionRequiredApp && (
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             background: "#fef2f2", border: "1px solid #fecaca",
             borderLeft: "4px solid #dc2626",
-            borderRadius: "10px", padding: "14px 18px",
-            marginBottom: "24px", gap: "12px",
+            borderRadius: "10px", padding: "12px 16px",
+            marginBottom: "20px", gap: "12px",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round">
                 <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
+                <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
               </svg>
-              <span style={{ fontSize: "14px", color: "#991b1b", fontWeight: "500" }}>
-                Action required on your {TRANSACTION_LABELS[actionRequiredApp.transaction_type] ?? "application"}.
+              <span style={{ fontSize: "13px", color: "#991b1b", fontWeight: "600" }}>
+                Action required — {TRANSACTION_LABELS[actionRequiredApp.transaction_type] ?? "application"}
               </span>
             </div>
-            <button
-              onClick={() => navigate(`/applications/${actionRequiredApp.id}`)}
-              style={{ background: "none", border: "none", fontSize: "13px", fontWeight: "700", color: "#dc2626", cursor: "pointer", whiteSpace: "nowrap", padding: 0 }}
-            >
-              View details →
+            <button onClick={() => navigate(`/applications/${actionRequiredApp.id}`)}
+              style={{ background: "none", border: "none", fontSize: "13px", fontWeight: "700", color: "#dc2626", cursor: "pointer", whiteSpace: "nowrap", padding: 0 }}>
+              View →
             </button>
           </div>
         )}
 
-        <DashboardGreeting
-          firstName={firstName}
-          isExpired={isExpired}
-          isExpiringSoon={isExpiringSoon}
-          daysUntilExpiry={daysUntilExpiry}
-          expiryLabel={expiryLabel}
-        />
+        {/* Main grid: licence card + sidebar */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr minmax(300px, 26%)", gap: "24px", alignItems: "start" }}>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "24px", alignItems: "start" }}>
-
+          {/* Left */}
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            <div onClick={() => setIsFlipped(v => !v)} style={{ cursor: "pointer", maxWidth: "520px" }}>
-              <LicenceCard
-                licence={displayLicence}
-                isFlipped={isFlipped}
-                isExpired={isExpired}
-                isExpiringSoon={isExpiringSoon}
-              />
-              <p style={{ textAlign: "center", fontSize: "11px", color: "#94a3b8", fontStyle: "italic", marginTop: "10px" }}>
-                Tap card to flip for security details
-              </p>
+
+            {/* Licence card */}
+            <div style={{ background: "white", borderRadius: "16px", border: "1px solid #e9e8e7", padding: "24px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)", display: "flex", gap: "24px", alignItems: "flex-start" }}>
+              {/* Card + flip hint */}
+              <div style={{ flex: "0 0 auto", width: "min(520px, 100%)" }}>
+                <div onClick={() => setIsFlipped(v => !v)} style={{ cursor: "pointer" }}>
+                  <LicenceCard
+                    licence={displayLicence}
+                    isFlipped={isFlipped}
+                    isExpired={isExpired}
+                    isExpiringSoon={isExpiringSoon}
+                  />
+                </div>
+                <p style={{ fontSize: "11px", color: "#94a3b8", margin: "8px 0 0", textAlign: "center" }}>
+                  Tap card to flip
+                </p>
+              </div>
+
+              {/* Right info + actions */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "16px", minWidth: 0, paddingTop: "4px" }}>
+                <div>
+                  <p style={{ fontSize: "15px", fontWeight: "700", color: "#1b1c1c", margin: "0 0 3px" }}>Digital Licence</p>
+                  {digitalLicence?.generated_at && (
+                    <p style={{ fontSize: "12px", color: "#94a3b8", margin: 0 }}>
+                      Issued {new Date(digitalLicence.generated_at).toLocaleDateString("en-JM", { day: "numeric", month: "long", year: "numeric" })}
+                    </p>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <DownloadLicenceButton frontRef={frontRef} backRef={backRef} licence={displayLicence} />
+                  <button
+                    onClick={() => setIsFlipped(v => !v)}
+                    style={{ width: "100%", background: "none", border: "1.5px solid #e9e8e7", borderRadius: "10px", padding: "10px 14px", fontSize: "13px", fontWeight: "600", color: "#374151", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
+                    </svg>
+                    {isFlipped ? "View Front" : "View Back"}
+                  </button>
+                </div>
+
+                {licence && (
+                  <div style={{ background: "#f8fafc", borderRadius: "10px", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {[
+                      { label: "Control No.", value: licence.control_number ?? "—" },
+                      { label: "Class", value: licence.licence_class ?? "—" },
+                      { label: "Expires", value: expiryLabel },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</span>
+                        <span style={{ fontSize: "13px", fontWeight: "700", color: "#1b1c1c", fontFamily: "monospace" }}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+
             <RecentActivity applications={applications} navigate={navigate} />
           </div>
 
+          {/* Right sidebar */}
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             <LicenceStatusCard
               isExpired={isExpired}
@@ -221,78 +533,84 @@ export default function Dashboard() {
               issueDate={displayLicence?.issue_date}
               today={today}
             />
-            {draftApp && (
-              <div style={{ background: "#fffbeb", borderRadius: "12px", border: "1px solid #fde68a", padding: "16px 18px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                  </svg>
-                  <p style={{ fontSize: "13px", fontWeight: "700", color: "#92400e", margin: 0 }}>Application in Progress</p>
-                </div>
-                <p style={{ fontSize: "12px", color: "#a16207", margin: "0 0 12px", lineHeight: 1.5 }}>
-                  You have an unsubmitted {TRANSACTION_LABELS[draftApp.transaction_type] ?? "application"}.
-                </p>
-                {/* ✅ FIXED: was /apply/retrieve-record?resume= */}
-                <button
-                  onClick={() => navigate(`/apply?resume=${draftApp.id}`)}
-                  style={{ background: "#d97706", color: "white", border: "none", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: "700", cursor: "pointer", width: "100%" }}
-                >
-                  Resume →
-                </button>
-              </div>
-            )}
             <PickupDepotCard
               collectorateName={collectorateName}
               collectorateAddress={collectorateAddress}
-              mapQuery={mapQuery}
+              lat={collectorateLat}
+              lng={collectorateLng}
               approvedApp={approvedApp}
             />
+
+            {/* Quick Actions */}
+            <div style={{ background: "white", borderRadius: "14px", border: "1px solid #e9e8e7", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+              <div style={{ padding: "14px 16px", borderBottom: "1px solid #f1f0ef" }}>
+                <p style={{ fontSize: "12px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>Quick Actions</p>
+              </div>
+              <div style={{ padding: "8px" }}>
+                {[
+                  {
+                    label: "Apply for Replacement",
+                    desc: "Lost or damaged licence",
+                    onClick: () => navigate("/apply?type=replacement"),
+                    color: "#d97706", bg: "#fef3c7",
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>,
+                  },
+                  {
+                    label: "View Applications",
+                    desc: "Track your submissions",
+                    onClick: () => navigate("/applications"),
+                    color: BRAND.primary, bg: "#eff6ff",
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
+                  },
+                  {
+                    label: "Account Settings",
+                    desc: "Email, phone & password",
+                    onClick: () => setShowAccountSettings(true),
+                    color: "#7c3aed", bg: "#f5f3ff",
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
+                  },
+                ].map(({ label, desc, onClick, color, bg, icon }) => (
+                  <button key={label} onClick={onClick}
+                    style={{ width: "100%", background: "none", border: "none", borderRadius: "10px", padding: "10px 10px", fontSize: "13px", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: "10px", transition: "background 0.1s" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+                    onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: bg, color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {icon}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: "13px", fontWeight: "600", color: "#1b1c1c", margin: 0 }}>{label}</p>
+                      <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>{desc}</p>
+                    </div>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                  </button>
+                ))}
+              </div>
+              <div style={{ margin: "0 16px 14px", paddingTop: "12px", borderTop: "1px solid #f1f0ef" }}>
+                <p style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>Need Help?</p>
+                <a href="tel:18769265780" style={{ fontSize: "12px", fontWeight: "600", color: "#15803d", textDecoration: "none", display: "flex", alignItems: "center", gap: "5px", marginBottom: "4px" }}>
+                  <PhoneIcon size={12} /> 1-876-926-5780
+                </a>
+                <a href="mailto:support@dlrsjam.gov.jm" style={{ fontSize: "12px", color: "#64748b", textDecoration: "none", display: "flex", alignItems: "center", gap: "5px" }}>
+                  <MailIcon size={12} /> support@dlrsjam.gov.jm
+                </a>
+                <span style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px", display: "block" }}>Mon–Fri · 8AM–4PM</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginTop: "24px" }}>
-          <ActionCard
-            onClick={() => navigate("/apply?type=replacement")}
-            bg="linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)"
-            border="#fed7aa" glowColor="rgba(251,191,36,0.15)" shadowColor="rgba(217,119,6,0.15)"
-            iconColor="#d97706"
-            icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>}
-            title="Lost or Damaged?" titleColor="#92400e"
-            desc="Get a replacement licence issued quickly. Lost, stolen, or damaged cards covered." descColor="#a16207"
-            cta="Request Replacement" ctaColor="#d97706"
-          />
-          <ActionCard
-            onClick={() => navigate("/applications")}
-            bg="linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)"
-            border="#bfdbfe" glowColor="rgba(59,130,246,0.1)" shadowColor="rgba(37,99,235,0.15)"
-            iconColor={BRAND.primary}
-            icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>}
-            title="Track Your Progress" titleColor="#1e3a8a"
-            desc="Follow every step of your application in real time — from submission to card pickup." descColor="#3b82f6"
-            cta="View Applications" ctaColor={BRAND.primary}
-          />
-          <ActionCard
-            bg="linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)"
-            border="#bbf7d0" glowColor="rgba(34,197,94,0.1)"
-            iconColor="#15803d"
-            icon={<PhoneIcon size={22} />}
-            title="Need Help?" titleColor="#14532d"
-          >
-            <p style={{ fontSize: "12px", color: "#16a34a", margin: "0 0 10px", lineHeight: 1.6 }}>
-              Our TAJ team is available weekdays to assist with any questions about your licence.
-            </p>
-            <a href="tel:18769265780" style={{ fontSize: "13px", fontWeight: "700", color: "#15803d", textDecoration: "none", display: "flex", alignItems: "center", gap: "5px", marginBottom: "5px" }}>
-              <PhoneIcon size={13} /> 1-876-926-5780
-            </a>
-            <a href="mailto:support@dlrsjam.gov.jm" style={{ fontSize: "12px", color: "#16a34a", textDecoration: "none", display: "flex", alignItems: "center", gap: "5px" }}>
-              <MailIcon size={12} /> support@dlrsjam.gov.jm
-            </a>
-            <span style={{ fontSize: "11px", color: "#4ade80", marginTop: "6px", display: "block" }}>Mon–Fri · 8AM–4PM</span>
-          </ActionCard>
-        </div>
+      </div>
 
+      {showAccountSettings && <AccountSettingsModal onClose={() => setShowAccountSettings(false)} />}
+
+      {/* Hidden cards for PDF capture — sized at DESIGN_W so scale=1, dom-to-image scales up */}
+      <div style={{ position: "fixed", left: -9999, top: 0, pointerEvents: "none", zIndex: -1 }}>
+        <div ref={frontRef} style={{ width: DESIGN_W, height: DESIGN_H, overflow: "hidden", borderRadius: 18, flexShrink: 0 }}>
+          <LicenceCard licence={displayLicence} isFlipped={false} isExpired={isExpired} isExpiringSoon={isExpiringSoon} />
+        </div>
+        <div ref={backRef} style={{ width: DESIGN_W, height: DESIGN_H, overflow: "hidden", borderRadius: 18, flexShrink: 0, marginTop: 8 }}>
+          <LicenceCard licence={displayLicence} isFlipped={true} isExpired={isExpired} isExpiringSoon={isExpiringSoon} />
+        </div>
       </div>
     </DashboardLayout>
   );
@@ -374,37 +692,3 @@ function ActivityRow({ txLabel, txIcon, appNumber, date, statusBg, statusColor, 
   );
 }
 
-function ActionCard({ onClick, bg, border, glowColor, shadowColor, iconColor, icon, title, titleColor, desc, descColor, cta, ctaColor, children }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <div
-      onClick={onClick}
-      onMouseEnter={() => onClick && setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        background: bg, borderRadius: "14px", border: `1px solid ${border}`,
-        padding: "22px", position: "relative", overflow: "hidden",
-        cursor: onClick ? "pointer" : "default",
-        boxShadow: hovered && shadowColor ? `0 8px 24px ${shadowColor}` : "0 1px 3px rgba(0,0,0,0.04)",
-        transform: hovered && onClick ? "translateY(-2px)" : "translateY(0)",
-        transition: "transform 0.15s, box-shadow 0.15s",
-      }}
-    >
-      <div style={{ position: "absolute", top: "-12px", right: "-12px", width: "80px", height: "80px", borderRadius: "50%", background: glowColor }} />
-      <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "white", boxShadow: "0 2px 8px rgba(0,0,0,0.08)", color: iconColor, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "14px" }}>
-        {icon}
-      </div>
-      <p style={{ fontSize: "15px", fontWeight: "700", color: titleColor, margin: "0 0 6px" }}>{title}</p>
-      {desc && <p style={{ fontSize: "12px", color: descColor, margin: "0 0 16px", lineHeight: 1.6 }}>{desc}</p>}
-      {cta && (
-        <span style={{ fontSize: "13px", fontWeight: "700", color: ctaColor, display: "flex", alignItems: "center", gap: "4px" }}>
-          {cta}
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
-          </svg>
-        </span>
-      )}
-      {children}
-    </div>
-  );
-}

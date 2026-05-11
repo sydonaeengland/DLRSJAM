@@ -1,3 +1,4 @@
+# Collectorate model — TAJ branch offices. Used for officer assignment and pickup location selection.
 from config.extensions import db
 
 

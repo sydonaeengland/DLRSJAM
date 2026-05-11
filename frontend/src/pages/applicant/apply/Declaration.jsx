@@ -1,3 +1,4 @@
+// Step 8 — applicant reads the statutory declaration and signs with the canvas pad.
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "../../../context/ApplicationContext";
@@ -71,8 +72,22 @@ export default function Declaration() {
   const trusteeFileRef = useRef(null);
 
   const declarationText = DECLARATION_TEXTS[state.transactionType] ?? DECLARATION_TEXTS.RENEWAL;
-  const expectedName = state.licenceRecord
-    ? `${state.licenceRecord.firstname} ${state.licenceRecord.lastname}`.toUpperCase()
+
+  const [licenceRecord, setLicenceRecord] = useState(state.licenceRecord || null);
+  useEffect(() => {
+    if (!licenceRecord) {
+      api.get("/api/applicant/licence").then(res => {
+        setLicenceRecord(res.data);
+        update({ licenceRecord: res.data });
+      }).catch(() => {});
+    }
+  }, []);
+
+  const expectedName = licenceRecord
+    ? [licenceRecord.firstname, licenceRecord.middlename, licenceRecord.lastname]
+        .filter(Boolean)
+        .join(" ")
+        .toUpperCase()
     : "";
 
   const parishCollectorates = collectorates.filter(
@@ -84,7 +99,13 @@ export default function Declaration() {
 
   useEffect(() => {
     api.get("/api/collectorates")
-      .then((res) => setCollectorates(res.data))
+      .then((res) => {
+        setCollectorates(res.data);
+        if (state.pickupCollectorateCode) {
+          const match = res.data.find(c => c.code === state.pickupCollectorateCode);
+          if (match) setSelectedParish(match.parish);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -194,6 +215,7 @@ export default function Declaration() {
     try {
       await api.patch(`/api/applicant/applications/${state.applicationId}`, {
         declaration: declarationText,
+        signature_image: signatureDataUrl,
         pickup_collectorate_code: collectorate,
         trustee_collection: trusteeCollection,
         trustee_name: trusteeCollection ? trusteeName.trim() : null,
@@ -217,10 +239,10 @@ export default function Declaration() {
   };
 
   return (
-    <StepLayout currentStep={6}>
+    <StepLayout currentStep={5}>
       <div style={{ marginBottom: "28px" }}>
         <p style={{ fontSize: "12px", fontWeight: "700", color: BRAND.primary, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>
-          Step 7 of 9
+          Step 6 of 8
         </p>
         <h1 style={{ fontSize: "26px", fontWeight: "800", color: "#1b1c1c", margin: "0 0 6px", letterSpacing: "-0.4px" }}>
           Declaration
@@ -313,7 +335,7 @@ export default function Declaration() {
               return (
                 <button
                   key={p || "all"}
-                  onClick={() => { setSelectedParish(p); setCollectorate(""); }}
+                  onClick={() => setSelectedParish(p)}
                   style={{
                     padding: "5px 12px", borderRadius: "999px", cursor: "pointer",
                     fontSize: "12px", fontWeight: "600",

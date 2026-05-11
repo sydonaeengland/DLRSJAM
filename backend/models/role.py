@@ -1,3 +1,4 @@
+# Role model — applicant / officer / supervisor / admin.
 from config.extensions import db
 
 

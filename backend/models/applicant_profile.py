@@ -1,3 +1,4 @@
+# Profile model — personal details for applicants (name, address, photo, etc.).
 from config.extensions import db
 
 

@@ -1,3 +1,4 @@
+# OfficerProfile model — staff details for officers (name, staff ID, branch, signature).
 from config.extensions import db
 
 
@@ -17,7 +18,7 @@ class OfficerProfile(db.Model):
     staff_id = db.Column(db.String(50), unique=True, nullable=False)
     department = db.Column(db.String(100), nullable=True)
 
-    # FK to collectorates.code e.g. "021"
+    # FK to collectorates.code e.g. "021" — this is their assigned branch
     branch_code = db.Column(
         db.String(5),
         db.ForeignKey("collectorates.code"),
@@ -27,6 +28,7 @@ class OfficerProfile(db.Model):
     work_email = db.Column(db.String(120), nullable=True)
     work_phone = db.Column(db.String(20), nullable=True)
     is_active_staff = db.Column(db.Boolean, default=True)
+    signature_image = db.Column(db.Text, nullable=True)
 
     branch = db.relationship(
         "Collectorate",

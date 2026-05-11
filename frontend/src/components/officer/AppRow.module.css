@@ -1,0 +1,85 @@
+.tableCard {
+  background: white;
+  border-radius: 14px;
+  border: 1px solid #e9e8e7;
+  overflow: hidden;
+}
+.tableCardHeader {
+  padding: 15px 20px;
+  border-bottom: 1px solid #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tableCardTitleWrap { display: flex; align-items: center; gap: 8px; }
+.tableCardTitle { font-size: 14px; font-weight: 700; color: #111827; }
+.tableCardCount {
+  font-size: 11px; font-weight: 700;
+  background: #f1f5f9; color: #6b7280;
+  padding: 2px 8px; border-radius: 999px;
+}
+.tableCardAction {
+  background: none; border: none;
+  font-size: 12px; font-weight: 600;
+  color: #2563eb; cursor: pointer; font-family: inherit;
+}
+.tableCardAction:hover { text-decoration: underline; }
+
+.appRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: background 0.1s, border-left-color 0.15s;
+  border-left: 3px solid #e2e8f0;
+}
+.appRow:hover      { background: #f8faff; }
+.appRow:last-child { border-bottom: none; }
+
+.appAvatar {
+  width: 34px; height: 34px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; flex-shrink: 0;
+}
+.appInfo  { flex: 1; min-width: 0; }
+.appName  { font-size: 13px; font-weight: 600; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.appRef   { font-size: 11px; color: #9ca3af; font-family: monospace; margin-top: 2px; }
+
+.appMeta  { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.txBadge {
+  font-size: 11px; font-weight: 600;
+  padding: 3px 8px; border-radius: 6px;
+  white-space: nowrap; width: 88px; text-align: center;
+}
+.statusPill {
+  font-size: 11px; font-weight: 600;
+  padding: 4px 10px; border-radius: 999px;
+  white-space: nowrap; width: 88px; text-align: center;
+}
+.appAge { font-size: 11px; width: 52px; text-align: right; flex-shrink: 0; }
+.appAge.overdue { color: #ef4444; font-weight: 600; }
+.appAge.normal  { color: #9ca3af; }
+
+.reviewBtn {
+  width: 88px; padding: 6px 12px; border-radius: 8px;
+  font-size: 12px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  white-space: nowrap; border: none; cursor: pointer;
+  font-family: inherit; flex-shrink: 0; transition: background 0.15s;
+}
+.reviewBtn.primary       { background: #1e3a8a; color: white; }
+.reviewBtn.primary:hover { background: #1d4ed8; }
+.reviewBtn.readonly       { background: white; color: #7c3aed; border: 1.5px solid #ddd6fe; }
+.reviewBtn.readonly:hover { background: #f5f3ff; }
+
+.empty { text-align: center; padding: 52px 20px; }
+.emptyIcon {
+  width: 38px; height: 38px; background: #f5f6f8;
+  border-radius: 10px; display: flex; align-items: center;
+  justify-content: center; margin: 0 auto 10px;
+}
+.emptyMsg { font-size: 13px; color: #9ca3af; }

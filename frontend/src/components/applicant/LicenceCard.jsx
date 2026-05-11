@@ -1,212 +1,364 @@
-// src/components/applicant/LicenceCard.jsx
+// Animated flip card that renders the applicant's digital licence — guilloche background, photo, fields, and signature on the front; endorsements and metadata on the back.
 import coatOfArms from "../../assets/coat-of-arms.png";
 import { LICENCE_CLASS_LABELS } from "../../config/constants";
 
-export default function LicenceCard({ licence, isFlipped, isExpired, isExpiringSoon }) {
-  const cardBase = {
-    borderRadius: "12px",
-    width: "100%",
-    aspectRatio: "1.586 / 1",
-    boxSizing: "border-box",
-    fontFamily: "Arial, sans-serif",
-    position: "relative",
-    overflow: "hidden",
-    boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+const STYLE_ID = "lc-f-styles";
+if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
+  const s = document.createElement("style");
+  s.id = STYLE_ID;
+  s.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+    @keyframes lc-pulse {
+      0%   { box-shadow: 0 0 0 0 oklch(0.75 0.18 165 / 0.6); }
+      70%  { box-shadow: 0 0 0 6px oklch(0.75 0.18 165 / 0); }
+      100% { box-shadow: 0 0 0 0 oklch(0.75 0.18 165 / 0); }
+    }
+    @keyframes lc-holo {
+      0%, 100% { transform: translateX(0); opacity: 0.7; }
+      50%       { transform: translateX(-20px); opacity: 1; }
+    }
+  `;
+  document.head.appendChild(s);
+}
+
+const SW = 40; // stripe width
+
+const CARD_BG = `
+  radial-gradient(700px 400px at 100% 0%, oklch(0.97 0.08 95 / 0.85), transparent 60%),
+  radial-gradient(600px 360px at 0% 100%, oklch(0.95 0.06 240 / 0.55), transparent 60%),
+  linear-gradient(180deg, oklch(0.985 0.02 95) 0%, oklch(0.97 0.03 100) 100%)`;
+
+// background security pattern — concentric rings + sine waves
+function GuillocheF() {
+  const rings = Array.from({ length: 16 }, (_, i) => ({ r: 20 + i * 12, op: Math.max(0, 0.6 - i * 0.025) }));
+  const waves = Array.from({ length: 18 }, (_, i) => {
+    const y = 30 + i * 22;
+    const pts = Array.from({ length: 70 }, (_, j) => {
+      const x = -10 + j * 11;
+      const yy = y + Math.sin(j * 0.3 + i * 0.7) * (6 + i * 0.3) + Math.cos(j * 0.15) * 2;
+      return `L ${x} ${yy.toFixed(2)}`;
+    }).join(" ");
+    return `M -10 ${y} ${pts}`;
+  });
+  return (
+    <svg viewBox="0 0 700 440" preserveAspectRatio="none"
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", opacity: 0.6, zIndex: 0 }}>
+      <defs>
+        <linearGradient id="wF" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%"   stopColor="oklch(0.65 0.18 95)"  stopOpacity="0.5"  />
+          <stop offset="50%"  stopColor="oklch(0.55 0.16 145)" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="oklch(0.55 0.18 245)" stopOpacity="0.25" />
+        </linearGradient>
+        <radialGradient id="oF" cx="0.85" cy="0.2" r="0.5">
+          <stop offset="0%"   stopColor="oklch(0.85 0.18 95)"  stopOpacity="0.4" />
+          <stop offset="100%" stopColor="oklch(0.7 0.16 245)"  stopOpacity="0"   />
+        </radialGradient>
+      </defs>
+      <rect width="700" height="440" fill="url(#oF)" />
+      {rings.map(({ r, op }, i) => (
+        <circle key={i} cx="595" cy="90" r={r} stroke="url(#wF)" strokeWidth="0.5" fill="none" opacity={op} />
+      ))}
+      {waves.map((d, i) => <path key={i} d={d} stroke="url(#wF)" strokeWidth="0.5" fill="none" />)}
+    </svg>
+  );
+}
+
+function FlareRays() {
+  return (
+    <div style={{
+      position: "absolute", right: -70, top: -70, width: 260, height: 260, zIndex: 0,
+      background: `conic-gradient(from 10deg,
+        oklch(0.85 0.18 95 / 0.28) 0deg,   transparent 16deg,
+        oklch(0.7 0.16 245 / 0.22) 32deg,  transparent 48deg,
+        oklch(0.7 0.16 145 / 0.22) 64deg,  transparent 80deg,
+        oklch(0.85 0.18 95 / 0.26) 96deg,  transparent 112deg,
+        oklch(0.7 0.16 245 / 0.2) 128deg,  transparent 144deg,
+        oklch(0.7 0.16 145 / 0.22) 160deg, transparent 360deg)`,
+      borderRadius: "50%", pointerEvents: "none", mixBlendMode: "multiply",
+    }} />
+  );
+}
+
+function HoloBand() {
+  return (
+    <div style={{
+      position: "absolute", top: 0, bottom: 0, right: 0, width: 150, zIndex: 1,
+      background: `linear-gradient(118deg,
+        transparent 8%, oklch(0.92 0.16 95 / 0.28) 28%,
+        oklch(0.9 0.14 145 / 0.24) 48%, oklch(0.9 0.14 245 / 0.24) 68%,
+        oklch(0.92 0.16 95 / 0.2) 84%, transparent 96%)`,
+      mixBlendMode: "screen", pointerEvents: "none",
+      animation: "lc-holo 9s ease-in-out infinite",
+    }} />
+  );
+}
+
+// green stripe on the left edge with dots and vertical text
+function Stripe({ label }) {
+  const dot = {
+    width: 6, height: 6, borderRadius: "50%",
+    background: "oklch(0.92 0.1 145)",
+    boxShadow: "0 0 0 1px oklch(0.32 0.12 150 / 0.6), 0 0 5px oklch(0.7 0.16 145 / 0.6)",
   };
-
-  const bg = {
-    position: "absolute", inset: 0,
-    background: "linear-gradient(135deg, #e8f5e0 0%, #d4edda 30%, #c8e6c9 60%, #b8dcc8 100%)",
-  };
-
-  const holographic = {
-    position: "absolute", inset: 0, opacity: 0.18,
-    backgroundImage: `
-      repeating-linear-gradient(45deg, #4fc3f7 0, #4fc3f7 1px, transparent 0, transparent 8px),
-      repeating-linear-gradient(-45deg, #81c784 0, #81c784 1px, transparent 0, transparent 8px)
-    `,
-  };
-
-  const blue = "#003087";
-  const borderBlue = "#1565c0";
-
-  if (!isFlipped) {
-    return (
-      <div style={cardBase}>
-        <div style={bg} />
-        <div style={holographic} />
-
-        {/* Status tint overlay for expired */}
-        {isExpired && <div style={{ position: "absolute", inset: 0, background: "rgba(220,38,38,0.06)" }} />}
-
-        <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column", padding: "10px 12px 8px" }}>
-
-          {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginBottom: "6px", borderBottom: `2px solid ${borderBlue}`, paddingBottom: "5px" }}>
-            <img src={coatOfArms} alt="" style={{ width: "28px", height: "28px", objectFit: "contain", flexShrink: 0 }} />
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "11px", fontWeight: "800", color: blue, letterSpacing: "0.5px" }}>GOVERNMENT OF JAMAICA</div>
-              <div style={{ fontSize: "10px", fontWeight: "700", color: blue }}>DRIVER'S LICENCE</div>
-            </div>
-          </div>
-
-          {/* Main body */}
-          <div style={{ display: "flex", flex: 1, gap: "8px" }}>
-
-            {/* Left — fields grid */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "3px" }}>
-
-              {/* Row 1 */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px" }}>
-                <Field label="CLASS" value={licence?.licence_class ?? "—"} blue={blue} borderBlue={borderBlue} />
-                <Field label="TRN" value={licence?.trn ?? "—"} blue={blue} borderBlue={borderBlue} />
-              </div>
-
-              {/* Row 2 */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px" }}>
-                <Field label="DATE ISSUED" value={licence?.issue_date ?? "—"} blue={blue} borderBlue={borderBlue} />
-                <Field label="COLLECTORATE" value={licence?.collectorate ?? "—"} blue={blue} borderBlue={borderBlue} small />
-              </div>
-
-              {/* Row 3 */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 40px", gap: "3px" }}>
-                <Field label="EXPIRY DATE" value={licence?.expiry_date ?? "—"} blue={blue} borderBlue={borderBlue}
-                  valueStyle={{ color: isExpired ? "#dc2626" : isExpiringSoon ? "#d97706" : undefined, fontWeight: "700" }} />
-                <Field label="BIRTH DATE" value={licence?.date_of_birth ?? "—"} blue={blue} borderBlue={borderBlue} />
-                <Field label="SEX" value={licence?.sex ?? "—"} blue={blue} borderBlue={borderBlue} />
-              </div>
-
-              {/* Name */}
-              <div style={{ border: `1px solid ${borderBlue}`, padding: "2px 4px", background: "rgba(255,255,255,0.4)", borderRadius: "2px" }}>
-                <div style={{ fontSize: "7px", fontWeight: "700", color: blue, textTransform: "uppercase" }}>Name</div>
-                <div style={{ fontSize: "11px", fontWeight: "800", color: "#111", lineHeight: 1.2 }}>
-                  {licence?.firstname?.toUpperCase()}<br />{licence?.lastname?.toUpperCase()}
-                </div>
-              </div>
-
-              {/* Address */}
-              <div style={{ border: `1px solid ${borderBlue}`, padding: "2px 4px", background: "rgba(255,255,255,0.4)", borderRadius: "2px", flex: 1 }}>
-                <div style={{ fontSize: "7px", fontWeight: "700", color: blue, textTransform: "uppercase" }}>Address</div>
-                <div style={{ fontSize: "8px", color: "#111", lineHeight: 1.3 }}>
-                  {[licence?.address_line1, licence?.address_line2, licence?.parish].filter(Boolean).join(", ") || "—"}
-                </div>
-              </div>
-            </div>
-
-            {/* Right — photo */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", flexShrink: 0 }}>
-              <div style={{
-                width: "68px", height: "84px",
-                border: `2px solid ${borderBlue}`,
-                borderRadius: "4px",
-                overflow: "hidden",
-                background: "rgba(255,255,255,0.5)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                {licence?.photo_url ? (
-                  <img src={licence.photo_url} alt="Photo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="#90a4ae">
-                    <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
-                  </svg>
-                )}
-              </div>
-              <div style={{ fontSize: "7px", color: "#555", textAlign: "center", lineHeight: 1.2 }}>SIGNATURE OF<br />LICENSEE</div>
-              {/* Status badge */}
-              {(isExpired || isExpiringSoon) && (
-                <div style={{ fontSize: "7px", fontWeight: "800", padding: "1px 5px", borderRadius: "3px", background: isExpired ? "#dc2626" : "#d97706", color: "white", textAlign: "center" }}>
-                  {isExpired ? "EXPIRED" : "EXPIRING"}
-                </div>
-              )}
-            </div>
-          </div>
+  return (
+    <>
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0, width: SW, zIndex: 2,
+        background: "linear-gradient(180deg, oklch(0.42 0.14 150) 0%, oklch(0.5 0.16 145) 50%, oklch(0.38 0.14 155) 100%)",
+      }} />
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0, width: SW, zIndex: 3,
+        background: "repeating-linear-gradient(135deg, rgba(255,255,255,0.06) 0 1.5px, transparent 1.5px 14px)",
+        pointerEvents: "none",
+      }} />
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0, width: SW, zIndex: 4,
+        display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "space-between", padding: "12px 0", pointerEvents: "none",
+      }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          <div style={dot} /><div style={dot} /><div style={dot} />
+        </div>
+        <div style={{
+          writingMode: "vertical-rl", transform: "rotate(180deg)",
+          fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 8, fontWeight: 600,
+          letterSpacing: "0.28em", textTransform: "uppercase",
+          color: "oklch(0.96 0.08 130)",
+          textShadow: "0 0 6px oklch(0.3 0.12 150 / 0.7)",
+        }}>{label}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          <div style={dot} /><div style={dot} /><div style={dot} />
         </div>
       </div>
-    );
-  }
+    </>
+  );
+}
 
-  // ── Back ──
+// individual field box — label on top, value below
+function Field({ label, children, value, mono, tint, bold, style: sx, valSx }) {
   return (
-    <div style={cardBase}>
-      <div style={bg} />
-      <div style={holographic} />
+    <div style={{
+      border: "1px solid rgba(30,50,120,0.1)",
+      borderRadius: 4, padding: "3px 5px 4px",
+      background: "rgba(255,255,255,0.18)",
+      boxSizing: "border-box", minHeight: 0,
+      ...sx,
+    }}>
+      <div style={{
+        fontFamily: "'IBM Plex Mono', monospace",
+        fontSize: 6.5, letterSpacing: "0.13em", textTransform: "uppercase",
+        color: "oklch(0.45 0.1 245)", fontWeight: 500, marginBottom: 2,
+      }}>{label}</div>
+      {children ?? (
+        <div style={{
+          fontSize: 10.5, fontWeight: bold ? 700 : 500,
+          fontFamily: mono ? "'IBM Plex Mono', monospace" : "'IBM Plex Sans', sans-serif",
+          letterSpacing: mono ? "0.04em" : "0.02em", lineHeight: 1.2,
+          textTransform: "uppercase",
+          color: "oklch(0.22 0.05 250)",
+          ...(tint ? {
+            background: "linear-gradient(90deg, oklch(0.42 0.14 245), oklch(0.55 0.18 95))",
+            WebkitBackgroundClip: "text", backgroundClip: "text",
+            WebkitTextFillColor: "transparent", fontWeight: 700,
+          } : {}),
+          ...valSx,
+        }}>{value}</div>
+      )}
+    </div>
+  );
+}
 
-      <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column", padding: "8px 12px" }}>
+function SigSVG({ path = "M2 22 C 10 8, 20 28, 32 14 S 60 6, 78 20 S 110 8, 130 18" }) {
+  return (
+    <svg viewBox="0 0 140 32" style={{ width: "100%", height: 24 }}>
+      <path d={path} stroke="oklch(0.22 0.05 250)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
 
-        {/* Top banner */}
-        <div style={{ background: blue, color: "white", textAlign: "center", fontSize: "7px", fontWeight: "700", padding: "3px 6px", borderRadius: "2px", letterSpacing: "0.3px", marginBottom: "6px" }}>
-          MUST BE CARRIED WHEN OPERATING A MOTOR VEHICLE OR APPLYING FOR RENEWAL
+function Barcode({ value }) {
+  const seed = (value ?? "0000000").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  const bars = Array.from({ length: 52 }, (_, i) =>
+    ((seed * (i + 7) * 13) % 3 === 0) ? 3 : ((seed * (i + 3) * 7) % 5 === 0) ? 2 : 1
+  );
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <div style={{ display: "flex", gap: "1.5px", height: 26, alignItems: "stretch" }}>
+        <div style={{ width: 2, background: "oklch(0.25 0.08 245)", borderRadius: 1 }} />
+        <div style={{ width: 1 }} />
+        <div style={{ width: 2, background: "oklch(0.25 0.08 245)", borderRadius: 1 }} />
+        <div style={{ width: 3 }} />
+        {bars.map((w, i) => (
+          i % 2 === 0
+            ? <div key={i} style={{ width: w, background: "oklch(0.25 0.08 245)", opacity: 0.88 }} />
+            : <div key={i} style={{ width: w + 1 }} />
+        ))}
+        <div style={{ width: 3 }} />
+        <div style={{ width: 2, background: "oklch(0.25 0.08 245)", borderRadius: 1 }} />
+        <div style={{ width: 1 }} />
+        <div style={{ width: 2, background: "oklch(0.25 0.08 245)", borderRadius: 1 }} />
+      </div>
+      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, letterSpacing: "0.2em", color: "oklch(0.3 0.08 245)", textAlign: "right" }}>
+        JM · {value ?? "0000 0000"}
+      </div>
+    </div>
+  );
+}
+
+// front face of the card
+function Front({ licence, isExpired, isExpiringSoon }) {
+  const expCol = isExpired ? "#dc2626" : isExpiringSoon ? "#d97706" : undefined;
+  const PL = SW + 12;
+
+  // Photo column width — large enough to be meaningful but leaves room for fields
+  const PHOTO_W = 118;
+
+  return (
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden", background: CARD_BG, fontFamily: "'IBM Plex Sans', sans-serif" }}>
+      <FlareRays />
+      <GuillocheF />
+      <HoloBand />
+      <Stripe label="Jamaica" />
+
+      {/* Top bar */}
+      <div style={{
+        position: "relative", zIndex: 5,
+        height: 52, paddingLeft: PL, paddingRight: 12,
+        display: "flex", alignItems: "center", gap: 10,
+        borderBottom: "1px solid oklch(0.42 0.14 245 / 0.22)",
+        flexShrink: 0,
+      }}>
+        <div style={{
+          width: 36, height: 36, flexShrink: 0, borderRadius: "50%",
+          background: "rgba(255,255,255,0.7)",
+          boxShadow: "0 0 0 1px oklch(0.42 0.14 245 / 0.4)",
+          display: "grid", placeItems: "center", overflow: "hidden",
+        }}>
+          <img src={coatOfArms} alt="" style={{ width: "80%", height: "80%", objectFit: "contain" }} />
+        </div>
+        <div style={{ lineHeight: 1.1, flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 7.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "oklch(0.42 0.14 245)", fontWeight: 600 }}>
+            Government of Jamaica
+          </div>
+          <div style={{
+            fontSize: 15, fontWeight: 700, letterSpacing: "0.05em", marginTop: 1,
+            textTransform: "uppercase",
+            background: "linear-gradient(90deg, oklch(0.32 0.14 245), oklch(0.55 0.18 95))",
+            WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent",
+          }}>DRIVER'S LICENCE</div>
+        </div>
+        {isExpired ? (
+          <div style={{
+            flexShrink: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: 8, fontWeight: 700,
+            letterSpacing: "0.1em", textTransform: "uppercase",
+            background: "#dc2626", color: "white", padding: "3px 8px", borderRadius: 999,
+          }}>EXPIRED</div>
+        ) : (
+          <div style={{
+            flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5,
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: 8,
+            letterSpacing: "0.1em", textTransform: "uppercase",
+            background: "rgba(255,255,255,0.7)",
+            border: "1px solid oklch(0.55 0.16 95 / 0.5)",
+            padding: "3px 8px", borderRadius: 999, color: "oklch(0.42 0.14 245)",
+          }}>
+            <span style={{
+              width: 5, height: 5, borderRadius: "50%", flexShrink: 0,
+              background: isExpiringSoon ? "#d97706" : "oklch(0.75 0.18 165)",
+              animation: "lc-pulse 1.8s ease-out infinite",
+            }} />
+            {isExpiringSoon ? "Expiring" : "Verified"}
+          </div>
+        )}
+      </div>
+
+      {/* main content grid — photo on the right, fields on the left */}
+      <div style={{
+        position: "relative", zIndex: 5,
+        paddingLeft: PL, paddingRight: 10,
+        paddingTop: 7, paddingBottom: 5,
+        display: "grid",
+        gridTemplateColumns: "60% 40%",
+        gridTemplateRows: "auto auto auto auto 1fr 44px",
+        columnGap: 8, rowGap: 4,
+        height: "calc(100% - 52px)", boxSizing: "border-box",
+      }}>
+
+        {/* top row */}
+        <div style={{ gridColumn: 1, display: "grid", gridTemplateColumns: "52px 1fr", gap: 4 }}>
+          <Field label="Class" value={licence?.licence_class ?? "—"} tint />
+          <Field label="TRN" value={licence?.trn ?? "—"} mono bold />
         </div>
 
-        {/* Licence to drive + original date */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "8px", marginBottom: "5px", border: `1px solid ${borderBlue}`, borderRadius: "2px", overflow: "hidden" }}>
-          <div style={{ padding: "3px 6px", background: "rgba(255,255,255,0.4)" }}>
-            <div style={{ fontSize: "7px", fontWeight: "700", color: blue }}>LICENCE TO DRIVE</div>
-            <div style={{ fontSize: "9px", fontWeight: "700", color: "#111" }}>
-              {LICENCE_CLASS_LABELS[licence?.licence_class] ?? licence?.licence_class ?? "—"}
+        {/* dates row */}
+        <div style={{ gridColumn: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+          <Field label="Date Issued" value={licence?.issue_date ?? "—"} mono />
+          <Field label="Collectorate" value={licence?.collectorate ?? "—"} />
+        </div>
+
+        {/* expiry / dob / sex */}
+        <div style={{ gridColumn: 1, display: "grid", gridTemplateColumns: "1fr 1fr 26px", gap: 4 }}>
+          <Field label="Expiry Date" value={licence?.expiry_date ?? "—"} mono
+            valSx={expCol ? { color: expCol, fontWeight: 700 } : undefined} />
+          <Field label="Birth Date" value={licence?.date_of_birth ?? "—"} mono />
+          <Field label="Sex" value={licence?.sex ?? "—"} mono />
+        </div>
+
+        {/* name */}
+        <Field label="Name" style={{ gridColumn: 1, paddingTop: 5, paddingBottom: 6 }}>
+          <div style={{ lineHeight: 1.35 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: "oklch(0.18 0.05 250)", textTransform: "uppercase" }}>
+              {licence?.lastname?.toUpperCase() || "—"}
             </div>
-          </div>
-          <div style={{ padding: "3px 6px", background: "rgba(255,255,255,0.4)", borderLeft: `1px solid ${borderBlue}` }}>
-            <div style={{ fontSize: "7px", fontWeight: "700", color: blue }}>ORIGINAL DATE OF ISSUE</div>
-            <div style={{ fontSize: "9px", fontWeight: "700", color: "#111" }}>{licence?.issue_date ?? "—"}</div>
-          </div>
-        </div>
-
-        {/* Judicial endorsements table */}
-        <div style={{ border: `1px solid ${borderBlue}`, borderRadius: "2px", marginBottom: "5px", overflow: "hidden", flex: 1 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", background: "rgba(21,101,192,0.12)" }}>
-            <div style={{ fontSize: "7px", fontWeight: "700", color: blue, padding: "2px 4px", borderRight: `1px solid ${borderBlue}` }}>DATE</div>
-            <div style={{ fontSize: "7px", fontWeight: "700", color: blue, padding: "2px 4px" }}>JUDICIAL ENDORSEMENTS</div>
-          </div>
-          {/* Endorsement rows */}
-          {(licence?.judicial_endorsements?.length > 0) ? (
-            licence.judicial_endorsements.map((e, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "90px 1fr", borderTop: `1px solid ${borderBlue}` }}>
-                <div style={{ fontSize: "8px", color: "#111", padding: "2px 4px", borderRight: `1px solid ${borderBlue}` }}>{e.date}</div>
-                <div style={{ fontSize: "8px", color: "#111", padding: "2px 4px" }}>{e.description}</div>
+            {(licence?.firstname || licence?.middlename) && (
+              <div style={{ fontSize: 11, fontWeight: 400, color: "oklch(0.35 0.06 250)", textTransform: "uppercase" }}>
+                {[licence.firstname, licence.middlename].filter(Boolean).map(n => n.toUpperCase()).join(" ")}
               </div>
-            ))
+            )}
+          </div>
+        </Field>
+
+        {/* address — fills the remaining space on the left */}
+        <Field label="Address" style={{ gridColumn: 1, gridRow: "5 / 7", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <div style={{ fontSize: 9.5, fontWeight: 400, lineHeight: 1.45, color: "oklch(0.22 0.05 250)", textTransform: "uppercase", overflow: "hidden" }}>
+            {licence?.address_line1 && <div>{licence.address_line1}</div>}
+            {licence?.address_line2 && <div>{licence.address_line2}</div>}
+            {licence?.parish        && <div>{licence.parish}</div>}
+            {!licence?.address_line1 && !licence?.address_line2 && !licence?.parish &&
+              <span style={{ fontStyle: "italic", opacity: 0.4, textTransform: "none" }}>—</span>}
+          </div>
+        </Field>
+
+        {/* photo — right column, stops above the signature row */}
+        <div style={{ gridColumn: 2, gridRow: "1 / 6", borderRadius: 8, overflow: "hidden", position: "relative" }}>
+          {licence?.photo_url ? (
+            <img src={licence.photo_url} alt="Photo" style={{
+              width: "100%", height: "120%",
+              objectFit: "cover", objectPosition: "center 20%",
+              display: "block", mixBlendMode: "multiply",
+              marginTop: "-15%",
+            }} />
           ) : (
-            <div style={{ height: "30px" }} />
+            <div style={{
+              width: "100%", height: "100%", borderRadius: 8,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: "'IBM Plex Mono', monospace", fontSize: 7,
+              color: "oklch(0.65 0.06 248)", textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.5,
+            }}>Photo</div>
           )}
         </div>
 
-        {/* Bottom row — control no, TRN, nationality, number, signature */}
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "8px", marginBottom: "4px" }}>
-          <div style={{ display: "flex", gap: "12px" }}>
-            <div>
-              <div style={{ fontSize: "7px", fontWeight: "700", color: blue }}>CONTROL NO.</div>
-              <div style={{ fontSize: "9px", fontWeight: "700", color: "#111" }}>{licence?.control_number ?? "—"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: "7px", fontWeight: "700", color: blue }}>TRN</div>
-              <div style={{ fontSize: "9px", fontWeight: "700", color: "#111" }}>{licence?.trn ?? "—"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: "7px", fontWeight: "700", color: blue }}>NATIONALITY</div>
-              <div style={{ fontSize: "9px", fontWeight: "700", color: "#111" }}>{licence?.nationality ?? "—"}</div>
-            </div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: "7px", color: "#555" }}>COMMISSIONER INLAND REVENUE</div>
-            <div style={{ fontSize: "14px", fontFamily: "cursive", color: "#333", lineHeight: 1 }}>Dlrsjam</div>
-          </div>
-        </div>
-
-        {/* Barcode */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <div style={{ display: "flex", gap: "1px", height: "22px" }}>
-            {Array.from({ length: 60 }).map((_, i) => (
-              <div key={i} style={{
-                width: i % 3 === 0 ? "3px" : "1.5px",
-                height: "100%",
-                background: "#111",
-                opacity: i % 5 === 0 ? 0.4 : 1,
-              }} />
-            ))}
-          </div>
-          <div style={{ fontSize: "8px", fontFamily: "monospace", color: "#333", marginTop: "2px" }}>
-            {licence?.trn ?? "000000000"}
+        {/* signature — sits at the bottom of the right column */}
+        <div style={{ gridColumn: 2, gridRow: "5 / 7", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+          {licence?.signature_image ? (
+            <img src={licence.signature_image} alt="Signature"
+              style={{ width: "100%", height: 26, objectFit: "contain", objectPosition: "center", display: "block", mixBlendMode: "multiply", filter: "brightness(0) saturate(100%)" }} />
+          ) : (
+            <SigSVG />
+          )}
+          <div style={{ borderTop: "1.5px solid oklch(0.35 0.08 245 / 0.6)", marginTop: 2, marginBottom: 3 }} />
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 6, letterSpacing: "0.1em", textTransform: "uppercase", color: "oklch(0.5 0.1 245)", textAlign: "center" }}>
+            Signature of Licensee
           </div>
         </div>
       </div>
@@ -214,12 +366,171 @@ export default function LicenceCard({ licence, isFlipped, isExpired, isExpiringS
   );
 }
 
-// ── Small field box ──
-function Field({ label, value, blue, borderBlue, small, valueStyle }) {
+// back face of the card
+function Back({ licence }) {
+  const endorsements = licence?.judicial_endorsements ?? [];
+  const PL = SW + 12;
+
   return (
-    <div style={{ border: `1px solid ${borderBlue}`, padding: "2px 4px", background: "rgba(255,255,255,0.4)", borderRadius: "2px" }}>
-      <div style={{ fontSize: "7px", fontWeight: "700", color: blue, textTransform: "uppercase" }}>{label}</div>
-      <div style={{ fontSize: small ? "7px" : "9px", fontWeight: "700", color: "#111", lineHeight: 1.2, ...valueStyle }}>{value}</div>
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden", background: CARD_BG, fontFamily: "'IBM Plex Sans', sans-serif" }}>
+      <FlareRays />
+      <GuillocheF />
+      <HoloBand />
+
+      {/* Stripe — full height, overlaps must-carry */}
+      <Stripe label="Reverse" />
+
+      {/* Must-carry banner — stripe (zIndex 2-4) sits on top of this */}
+      <div style={{
+        position: "relative", zIndex: 1,
+        paddingLeft: PL, paddingRight: 14,
+        paddingTop: 6, paddingBottom: 6,
+        background: "linear-gradient(90deg, oklch(0.42 0.14 150 / 0.08) 0%, oklch(0.97 0.04 240 / 0.6) 30%, oklch(0.985 0.02 95 / 0.55) 100%)",
+        borderBottom: "1px solid oklch(0.42 0.14 245 / 0.15)",
+        fontFamily: "'IBM Plex Mono', monospace", fontSize: 7.5,
+        letterSpacing: "0.14em", textTransform: "uppercase",
+        color: "oklch(0.38 0.1 245)", textAlign: "center",
+      }}>
+        Must be carried when operating a motor vehicle or applying for renewal
+      </div>
+
+      {/* Back body — single column, no photo side column */}
+      <div style={{
+        position: "relative", zIndex: 3,
+        paddingLeft: PL, paddingRight: 10,
+        paddingTop: 8, paddingBottom: 8,
+        display: "flex", flexDirection: "column", gap: 6,
+        height: "calc(100% - 33px)", boxSizing: "border-box",
+      }}>
+
+        {/* Top info row */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 110px", gap: 5 }}>
+          <Field label="Licence to Drive"
+            value={LICENCE_CLASS_LABELS[licence?.licence_class] ?? licence?.licence_class ?? "—"}
+            valSx={{ fontSize: 10, lineHeight: 1.3 }} />
+          <Field label="Original Date of Issue"
+            value={licence?.first_issue_date ?? licence?.issue_date ?? "—"} mono />
+        </div>
+
+        {/* Endorsements table — photo is faded background inside */}
+        <div style={{
+          border: "1px solid rgba(30,50,120,0.12)", borderRadius: 6,
+          overflow: "hidden", background: "rgba(255,255,255,0.18)", flex: 1,
+          display: "flex", flexDirection: "column",
+          position: "relative",
+        }}>
+          {/* faint photo watermark behind the endorsements table */}
+          {licence?.photo_url && (
+            <div style={{
+              position: "absolute", inset: 0, zIndex: 0,
+              display: "flex", alignItems: "center", justifyContent: "flex-end",
+              pointerEvents: "none", overflow: "hidden",
+            }}>
+              <img src={licence.photo_url} alt="" style={{
+                height: "80%", width: "auto",
+                objectFit: "cover", objectPosition: "center top",
+                opacity: 0.12, mixBlendMode: "multiply",
+                filter: "grayscale(60%)",
+              }} />
+            </div>
+          )}
+
+          {/* header row */}
+          <div style={{
+            position: "relative", zIndex: 1,
+            display: "grid", gridTemplateColumns: "74px 1fr 56px",
+            background: "oklch(0.94 0.09 95 / 0.5)",
+            borderBottom: "1px solid rgba(30,50,120,0.12)",
+            flexShrink: 0,
+          }}>
+            {["Date", "Judicial Endorsements", "Status"].map((h, i) => (
+              <div key={i} style={{
+                padding: "4px 6px",
+                fontFamily: "'IBM Plex Mono', monospace", fontSize: 7,
+                letterSpacing: "0.14em", textTransform: "uppercase",
+                color: "oklch(0.42 0.14 245)",
+                borderRight: i < 2 ? "1px solid rgba(30,50,120,0.1)" : "none",
+              }}>{h}</div>
+            ))}
+          </div>
+
+          {/* endorsement rows */}
+          <div style={{ position: "relative", zIndex: 1, flex: 1 }}>
+            {endorsements.length > 0 ? endorsements.map((e, i) => (
+              <div key={i} style={{
+                display: "grid", gridTemplateColumns: "74px 1fr 56px",
+                alignItems: "center", minHeight: 24,
+                borderBottom: i < endorsements.length - 1 ? "1px dashed rgba(30,50,120,0.08)" : "none",
+              }}>
+                <div style={{ padding: "2px 6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: 9.5, color: "oklch(0.45 0.1 245)", borderRight: "1px solid rgba(30,50,120,0.08)" }}>{e.date}</div>
+                <div style={{ padding: "2px 6px", fontSize: 9.5, color: "oklch(0.22 0.05 250)", borderRight: "1px solid rgba(30,50,120,0.08)", textTransform: "uppercase" }}>{e.description}</div>
+                <div style={{ padding: "2px 6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: 8, textTransform: "uppercase", color: "oklch(0.5 0.18 95)" }}>{e.status ?? "Active"}</div>
+              </div>
+            )) : (
+              <div style={{ display: "grid", gridTemplateColumns: "74px 1fr 56px", minHeight: 24, alignItems: "center" }}>
+                <div style={{ padding: "2px 6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: 9.5, color: "oklch(0.45 0.1 245)" }}>—</div>
+                <div style={{ padding: "2px 6px", fontSize: 9.5, color: "rgba(7,24,47,0.4)", fontStyle: "italic" }}>No further entries</div>
+                <div />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer row */}
+        <div style={{ display: "grid", gridTemplateColumns: "72px 1fr 72px auto", gap: 5, alignItems: "end" }}>
+          <Field label="Control №" value={licence?.control_number ?? "—"} mono
+            style={{ background: "transparent", border: "1px solid rgba(30,50,120,0.1)" }} />
+          <Field label="TRN" value={licence?.trn ?? "—"} mono bold
+            style={{ background: "transparent", border: "1px solid rgba(30,50,120,0.1)" }} />
+          <Field label="Nationality" value={licence?.nationality ?? "—"}
+            style={{ background: "transparent", border: "1px solid rgba(30,50,120,0.1)" }} />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+            <SigSVG path="M2 22 C 14 6, 30 30, 46 14 S 78 6, 96 22 S 122 10, 138 18" />
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 6.5, letterSpacing: "0.09em", textTransform: "uppercase", color: "oklch(0.45 0.1 245)", whiteSpace: "nowrap" }}>
+              Commissioner · Tax Admin.
+            </div>
+          </div>
+        </div>
+
+        <Barcode value={licence?.control_number ?? licence?.trn} />
+      </div>
+    </div>
+  );
+}
+
+export default function LicenceCard({ licence, isFlipped, isExpired, isExpiringSoon }) {
+  const shadow = `
+    0 1px 0 rgba(255,255,255,0.6) inset,
+    0 30px 60px -25px rgba(7,24,47,0.32),
+    0 12px 26px -14px rgba(7,24,47,0.22),
+    0 0 0 1px rgba(7,24,47,0.06)`;
+
+  return (
+    <div style={{ width: "100%", aspectRatio: "1.586 / 1", perspective: "1200px" }}>
+      <div style={{
+        position: "relative", width: "100%", height: "100%",
+        transformStyle: "preserve-3d",
+        transition: "transform 0.65s cubic-bezier(0.45, 0.05, 0.55, 0.95)",
+        transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+      }}>
+        {/* front */}
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: 18, overflow: "hidden",
+          backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
+          boxShadow: shadow,
+        }}>
+          <Front licence={licence} isExpired={isExpired} isExpiringSoon={isExpiringSoon} />
+        </div>
+        {/* back — rotated 180 so it faces the right way when flipped */}
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: 18, overflow: "hidden",
+          backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
+          transform: "rotateY(180deg)",
+          boxShadow: shadow,
+        }}>
+          <Back licence={licence} />
+        </div>
+      </div>
     </div>
   );
 }

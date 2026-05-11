@@ -1,3 +1,4 @@
+// Step 1 — applicant picks Renewal, Replacement, or Amendment.
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import StepLayout from "../../../components/layout/StepLayout";
@@ -34,8 +35,8 @@ const TRANSACTIONS = [
   {
     id: "REPLACEMENT",
     title: "Licence Replacement",
-    description: "Replace a lost or damaged licence. ITA verification required for lost licences.",
-    badge: "Lost / Damaged",
+    description: "Replace a lost, stolen, or damaged licence. ITA traffic clearance is required.",
+    badge: "Replacement",
     badgeBg: "#ffedd5",
     badgeColor: "#92400e",
     iconBg: "#f97316",
@@ -46,8 +47,8 @@ const TRANSACTIONS = [
         <line x1="12" y1="17" x2="12" y2="21" />
       </svg>
     ),
-    docs: ["National ID (front & back)", "Existing licence if available", "Police report (optional)", "Licence photo"],
-    fee: "Lost (valid): $3,000  ·  Lost (expired): $7,140",
+    docs: ["National ID (front & back)", "Police report (if applicable)", "Licence photo"],
+    fee: "Flat fee: $3,000 + ITA clearance fee",
   },
   {
     id: "AMENDMENT",
@@ -73,12 +74,12 @@ export default function TransactionSelection() {
   const [searchParams] = useSearchParams();
   const { state, update } = useAppState();
 
-  const [selected,    setSelected]    = useState(state.transactionType || null);
-  const [hovered,     setHovered]     = useState(null);
-  const [creating,    setCreating]    = useState(false);
-  const [createError, setCreateError] = useState("");
-  const [existingApp, setExistingApp] = useState(null); // { id, number, type }
-  const [resuming,    setResuming]    = useState(false);
+  const [selected,         setSelected]         = useState(state.transactionType || null);
+  const [hovered,          setHovered]          = useState(null);
+  const [creating,         setCreating]         = useState(false);
+  const [createError,      setCreateError]      = useState("");
+  const [existingApp,      setExistingApp]      = useState(null);
+  const [resuming,         setResuming]         = useState(false);
 
   useEffect(() => {
     const resumeId  = searchParams.get("resume");
@@ -98,7 +99,6 @@ export default function TransactionSelection() {
                   applicationId:          d.id,
                   applicationNumber:      d.application_number,
                   transactionType:        d.transaction_type,
-                  replacementReason:      d.replacement_reason      || null,
                   addressChangeRequested: d.address_change_requested || false,
                   newAddressLine1:        d.new_address_line1        || "",
                   newAddressLine2:        d.new_address_line2        || "",
@@ -124,7 +124,6 @@ export default function TransactionSelection() {
     }
   }, []);
 
-  // Clear the duplicate block if user changes selection
   const handleSelect = (id) => {
     setSelected(id);
     setExistingApp(null);
@@ -180,7 +179,7 @@ export default function TransactionSelection() {
     <StepLayout currentStep={0}>
       <div style={{ marginBottom: "28px" }}>
         <p style={{ fontSize: "12px", fontWeight: "700", color: BRAND.primary, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>
-          Step 1 of 9
+          Step 1 of 8
         </p>
         <h1 style={{ fontSize: "26px", fontWeight: "800", color: "#1b1c1c", margin: "0 0 6px", letterSpacing: "-0.4px" }}>
           Select Transaction Type
@@ -248,7 +247,7 @@ export default function TransactionSelection() {
 
       <InfoBanner type="info" message="Make sure your TRN details are up to date before proceeding. Name changes take up to 48 hours to sync from the TRN system." />
 
-      {/* ── Duplicate block ── */}
+      {/* Duplicate block */}
       {existingApp && (
         <div style={{ marginTop: "16px", background: "#fefce8", border: "1.5px solid #fde047", borderRadius: "12px", padding: "18px 20px" }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
@@ -284,7 +283,7 @@ export default function TransactionSelection() {
         </div>
       )}
 
-      {/* ── Generic error ── */}
+      {/* Generic error */}
       {createError && (
         <div style={{ marginTop: "16px" }}>
           <InfoBanner type="error" message={createError} />

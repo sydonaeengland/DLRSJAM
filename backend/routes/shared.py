@@ -1,3 +1,4 @@
+# Shared routes used across portals (e.g. document file serving).
 from flask import Blueprint, jsonify
 from models.collectorate import Collectorate
 
