@@ -25,11 +25,11 @@
 /* sidebar */
 .sidebar {
   display: flex; flex-direction: column;
-  background: linear-gradient(180deg, #0f172a 0%, #1e3a5f 100%);
+  background: linear-gradient(180deg, #1e0533 0%, #3b0764 55%, #4c1d95 100%);
   border-right: none;
   overflow: hidden; flex-shrink: 0;
   transition: width 0.22s ease, min-width 0.22s ease;
-  box-shadow: 4px 0 20px rgba(0,0,0,0.18);
+  box-shadow: 4px 0 20px rgba(0,0,0,0.22);
 }
 .sidebar.expanded  { width: 224px; min-width: 224px; }
 .sidebar.collapsed { width: 58px;  min-width: 58px;  }
@@ -44,9 +44,9 @@
 
 .logoMark {
   width: 28px; height: 28px; border-radius: 8px;
-  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+  background: linear-gradient(135deg, #6d28d9, #7c3aed);
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(59,130,246,0.5);
+  box-shadow: 0 2px 8px rgba(109,40,217,0.5);
 }
 .logoText  { display: flex; align-items: center; gap: 9px; min-width: 0; overflow: hidden; }
 .logoTitle { font-size: 12px; font-weight: 800; color: white; letter-spacing: -0.2px; white-space: nowrap; }
@@ -71,9 +71,9 @@
 .navBtn.collapsed { justify-content: center; padding: 9px; }
 .navBtn:hover:not(.active) { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
 .navBtn.active {
-  background: linear-gradient(90deg, rgba(96,165,250,0.22) 0%, rgba(59,130,246,0.12) 100%);
-  color: #93c5fd;
-  box-shadow: inset 3px 0 0 #60a5fa;
+  background: linear-gradient(90deg, rgba(167,139,250,0.22) 0%, rgba(124,58,237,0.12) 100%);
+  color: #c4b5fd;
+  box-shadow: inset 3px 0 0 #a78bfa;
 }
 
 .navBtnInner { display: flex; align-items: center; }
@@ -89,7 +89,7 @@
   display: inline-flex; align-items: center; justify-content: center;
   background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7);
 }
-.navBtn.active .navBadge { background: #1d4ed8; color: white; }
+.navBtn.active .navBadge { background: #6d28d9; color: white; }
 
 .navBadgePurple { background: rgba(167,139,250,0.25) !important; color: #c4b5fd !important; }
 .navBadgeRed    { background: rgba(239,68,68,0.25) !important;   color: #fca5a5 !important; }
@@ -99,8 +99,8 @@
 
 .navDot {
   position: absolute; top: 7px; right: 7px;
-  width: 6px; height: 6px; border-radius: 50%; background: #60a5fa;
-  box-shadow: 0 0 6px rgba(96,165,250,0.7);
+  width: 6px; height: 6px; border-radius: 50%; background: #a78bfa;
+  box-shadow: 0 0 6px rgba(167,139,250,0.7);
 }
 
 .navDivider { border-top: 1px solid rgba(255,255,255,0.07); margin: 10px 0 8px; }
@@ -147,7 +147,7 @@
   justify-content: center; transition: background 0.1s; position: relative;
 }
 .iconBtn:hover     { background: #f5f6f8; }
-.iconBtn.notifOpen { background: #eff6ff; }
+.iconBtn.notifOpen { background: #f5f3ff; }
 
 .notifDot {
   position: absolute; top: 6px; right: 6px;
@@ -176,12 +176,12 @@
 
 .unreadBadge {
   font-size: 10px; font-weight: 700;
-  background: #1d4ed8; color: white;
+  background: #6d28d9; color: white;
   padding: 2px 6px; border-radius: 999px;
 }
 .markReadBtn {
   background: none; border: none; font-size: 11px;
-  font-weight: 600; color: #1d4ed8; cursor: pointer; font-family: inherit;
+  font-weight: 600; color: #7c3aed; cursor: pointer; font-family: inherit;
 }
 .markReadBtn:hover { text-decoration: underline; }
 
@@ -198,11 +198,11 @@
   border-radius: 10px; transition: background 0.1s; font-family: inherit;
 }
 .profileBtn:hover     { background: #f5f6f8; }
-.profileBtn.open      { background: #eff6ff; }
+.profileBtn.open      { background: #f5f3ff; }
 
 .profileAvatar {
   width: 28px; height: 28px; border-radius: 50%;
-  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+  background: linear-gradient(135deg, #6d28d9, #7c3aed);
   color: white; font-size: 10px; font-weight: 800;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
@@ -252,7 +252,7 @@
 /* ── Notification items ── */
 .notifItem        { padding: 12px 18px; border-bottom: 1px solid #f9fafb; }
 .notifItem:last-child { border-bottom: none; }
-.notifItemUnread  { background: #eff6ff; }
+.notifItemUnread  { background: #f5f3ff; }
 .notifItemTitle   { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 2px; }
 .notifItemMsg     { font-size: 11px; color: #6b7280; line-height: 1.4; }
 .notifEmpty       { padding: 32px 18px; text-align: center; font-size: 13px; color: #9ca3af; }
@@ -284,29 +284,29 @@
 .signOutRingInner { position: absolute; animation: spinReverse 2.6s linear infinite; }
 .signOutCrest {
   width: 60px; height: 60px; border-radius: 50%;
-  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 100%);
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 8px 28px rgba(37,99,235,0.4);
+  box-shadow: 0 8px 28px rgba(109,40,217,0.4);
 }
 .signOutTitle { font-size: 20px; font-weight: 800; color: #0f172a; margin: 0 0 8px; letter-spacing: -0.3px; }
 .signOutSub   { font-size: 13px; color: #94a3b8; margin: 0 0 32px; line-height: 1.65; }
 .signOutProgress { height: 3px; background: #f1f5f9; border-radius: 999px; overflow: hidden; margin-bottom: 28px; }
-.signOutBar { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #1e3a5f, #3b82f6); animation: progressBar 1.4s ease-in-out infinite; }
+.signOutBar { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #4c1d95, #7c3aed); animation: progressBar 1.4s ease-in-out infinite; }
 .signOutFooter { padding-top: 20px; border-top: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: center; gap: 7px; }
 .signOutFooterText { font-size: 11px; color: #94a3b8; font-weight: 600; letter-spacing: 0.05em; }
 
 /* greeting banner */
 .greetingBanner {
-  background: linear-gradient(125deg, #0f172a 0%, #1e3a5f 45%, #1d4ed8 100%);
+  background: linear-gradient(125deg, #1e0533 0%, #4c1d95 45%, #7c3aed 100%);
   border-radius: 20px; padding: 28px 32px;
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 22px; overflow: hidden; position: relative;
-  box-shadow: 0 8px 32px rgba(15,23,42,0.35), 0 2px 8px rgba(29,78,216,0.2);
+  box-shadow: 0 8px 32px rgba(30,5,51,0.45), 0 2px 8px rgba(109,40,217,0.3);
 }
 .greetingBanner::before {
   content: ""; position: absolute; top: -60px; right: 40px;
   width: 200px; height: 200px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(96,165,250,0.15), transparent 70%);
+  background: radial-gradient(circle, rgba(167,139,250,0.18), transparent 70%);
 }
 .greetingBanner::after {
   content: ""; position: absolute; bottom: -30px; right: 140px;
@@ -316,7 +316,7 @@
 .greetingLeft  { flex: 1; min-width: 0; position: relative; z-index: 1; }
 .greetingTime  { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.35); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
 .greetingText  { font-size: 22px; font-weight: 900; color: white; letter-spacing: -0.5px; margin-bottom: 5px; line-height: 1.15; }
-.greetingName  { color: #93c5fd; }
+.greetingName  { color: #c4b5fd; }
 .greetingMeta  { font-size: 12px; color: rgba(255,255,255,0.45); margin-bottom: 14px; }
 .greetingAlert { display: flex; flex-wrap: wrap; gap: 7px; }
 .greetingAlertChip {
@@ -409,8 +409,8 @@
   cursor: pointer; font-family: inherit; transition: all 0.1s;
 }
 .filterPill:hover { border-color: #d1d5db; color: #374151; }
-.filterPillActive     { background: #1e3a5f; border-color: #1e3a5f; color: white; }
-.filterPillActiveDate { background: #1e3a8a; border-color: #1e3a8a; color: white; }
+.filterPillActive     { background: #4c1d95; border-color: #4c1d95; color: white; }
+.filterPillActiveDate { background: #6d28d9; border-color: #6d28d9; color: white; }
 .filterDivider { width: 1px; height: 14px; background: #e9e8e7; margin: 0 4px; flex-shrink: 0; align-self: center; }
 
 .sectionSearchMeta {
@@ -420,7 +420,7 @@
 }
 .clearFiltersBtn {
   background: none; border: none; font-size: 11px; font-weight: 700;
-  color: #1d4ed8; cursor: pointer; font-family: inherit; margin-left: 4px;
+  color: #7c3aed; cursor: pointer; font-family: inherit; margin-left: 4px;
 }
 .clearFiltersBtn:hover { text-decoration: underline; }
 
@@ -594,19 +594,19 @@
 .tableRow:last-child   { border-bottom: none; }
 .tableRow:hover        { background: #f0f9ff; }
 .tableRowClickable { cursor: pointer; }
-.tableRowSelected  { background: #eff6ff !important; }
+.tableRowSelected  { background: #f5f3ff !important; }
 .td { padding: 12px 16px; vertical-align: middle; }
 
 .officerCell   { display: flex; align-items: center; gap: 10px; }
-.officerAvatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1d4ed8; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.officerAvatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #6d28d9; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .officerName    { font-weight: 700; color: #111827; font-size: 13px; }
 .officerViewBtn {
   font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 7px;
-  border: 1.5px solid #e2e8f0; background: white; color: #1d4ed8;
+  border: 1.5px solid #e2e8f0; background: white; color: #6d28d9;
   cursor: pointer; font-family: inherit; transition: background 0.1s, border-color 0.1s;
   white-space: nowrap;
 }
-.officerViewBtn:hover { background: #eff6ff; border-color: #93c5fd; }
+.officerViewBtn:hover { background: #f5f3ff; border-color: #c4b5fd; }
 .officerStaffId { font-size: 10px; color: #9ca3af; margin-top: 1px; }
 
 .countBadge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
@@ -656,8 +656,8 @@
   position: relative;
 }
 .stepBtn:hover { background: #f5f6f8; color: #374151; }
-.stepBtnActive { background: #0f172a !important; color: white !important; }
-.stepBtnDecision.stepBtnActive { background: #1e3a5f !important; }
+.stepBtnActive { background: #3b0764 !important; color: white !important; }
+.stepBtnDecision.stepBtnActive { background: #4c1d95 !important; }
 .stepNum {
   width: 18px; height: 18px; border-radius: 50%; font-size: 10px; font-weight: 800;
   display: flex; align-items: center; justify-content: center;
@@ -691,12 +691,12 @@
 .stepNextBtn {
   display: flex; align-items: center; gap: 6px;
   padding: 9px 16px; border-radius: 8px;
-  border: none; background: #0f172a;
+  border: none; background: #3b0764;
   font-family: inherit; font-size: 12px; font-weight: 700;
   color: white; cursor: pointer; margin-left: auto;
   transition: background 0.12s;
 }
-.stepNextBtn:hover { background: #1e3a5f; }
+.stepNextBtn:hover { background: #4c1d95; }
 
 /* ── Card ── */
 .card { background: white; border-radius: 16px; border: 1px solid #e9e8e7; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
@@ -727,7 +727,7 @@
 /* ── Signature block ── */
 .sigBlock  { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 20px; }
 .sigLabel  { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
-.sigText   { font-size: 26px; color: #1e3a8a; font-family: Georgia, 'Times New Roman', serif; font-style: italic; border-bottom: 2px solid #d1d5db; padding-bottom: 8px; margin-bottom: 8px; text-decoration: underline; }
+.sigText   { font-size: 26px; color: #4c1d95; font-family: Georgia, 'Times New Roman', serif; font-style: italic; border-bottom: 2px solid #d1d5db; padding-bottom: 8px; margin-bottom: 8px; text-decoration: underline; }
 .sigImage  { display: block; max-width: 100%; height: 72px; object-fit: contain; object-position: left center; border-bottom: 2px solid #d1d5db; padding-bottom: 8px; margin-bottom: 8px; }
 .sigNote   { font-size: 11px; color: #9ca3af; font-style: italic; }
 
@@ -755,7 +755,7 @@
 .activityEntry     { display: flex; gap: 12px; padding: 10px 20px; border-bottom: 1px solid #f9fafb; }
 .activityEntry:last-child { border-bottom: none; }
 .activityDot       { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-.activityDotPurple { background: #2563eb; }
+.activityDotPurple { background: #7c3aed; }
 .activityDotGrey   { background: #d1d5db; }
 .activityAction    { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 2px; }
 .activityMeta      { font-size: 11px; color: #9ca3af; }
@@ -763,7 +763,7 @@
 
 /* ── Decision panel ── */
 .decisionPanel       { border: 2px solid #e9e8e7; border-radius: 16px; background: white; overflow: hidden; }
-.decisionPanelHeader { background: linear-gradient(90deg, #0f172a, #1e3a5f); padding: 14px 20px; color: white; display: flex; align-items: center; gap: 10px; }
+.decisionPanelHeader { background: linear-gradient(90deg, #1e0533, #4c1d95); padding: 14px 20px; color: white; display: flex; align-items: center; gap: 10px; }
 .decisionPanelTitle  { font-size: 14px; font-weight: 800; }
 .decisionPanelSub    { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 2px; }
 .decisionIntro       { padding: 14px 20px; font-size: 12px; color: #6b7280; border-bottom: 1px solid #f3f4f6; line-height: 1.5; }
@@ -786,7 +786,7 @@
 .decisionFieldLabel   { font-size: 12px; font-weight: 700; color: #374151; display: block; margin-bottom: 6px; }
 .decisionFieldRequired { color: #ef4444; }
 .decisionTextarea     { width: 100%; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; font-size: 13px; font-family: inherit; resize: vertical; outline: none; line-height: 1.5; transition: border-color 0.15s; }
-.decisionTextarea:focus { border-color: #2563eb; }
+.decisionTextarea:focus { border-color: #7c3aed; }
 
 .resubmitCheckboxGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px; }
 @media (max-width: 600px) { .resubmitCheckboxGrid { grid-template-columns: 1fr; } }
@@ -805,7 +805,7 @@
 .existingSigImg  { display: block; height: 44px; object-fit: contain; object-position: left; max-width: 100%; margin-bottom: 6px; }
 .existingSigNote { font-size: 10px; font-weight: 700; color: #15803d; margin-bottom: 4px; }
 .sigSaveBtn       { width: 100%; padding: 9px 0; border-radius: 8px; border: none; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; color: white; }
-.sigSaveBtnActive   { background: #1e3a5f; cursor: pointer; }
+.sigSaveBtnActive   { background: #4c1d95; cursor: pointer; }
 .sigSaveBtnDisabled { background: #e2e8f0; cursor: not-allowed; }
 .sigUseSavedBtn  { font-size: 11px; background: #16a34a; color: white; border: none; border-radius: 7px; padding: 5px 12px; cursor: pointer; font-family: inherit; font-weight: 700; }
 .sigDrawOtherBtn { font-size: 10px; color: #6b7280; background: none; border: none; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 3px; padding: 3px 0; margin-top: 4px; }
@@ -823,7 +823,7 @@
 .decidedBanner         { margin: 0; padding: 16px 20px; display: flex; align-items: flex-start; gap: 12px; border-radius: 14px; }
 .decidedBannerApproved { background: #f0fdf4; border: 2px solid #86efac; }
 .decidedBannerRejected { background: #fff5f5; border: 2px solid #fca5a5; }
-.decidedBannerNeutral  { background: #eff6ff; border: 2px solid #bfdbfe; }
+.decidedBannerNeutral  { background: #f5f3ff; border: 2px solid #ddd6fe; }
 .decidedBannerTitle    { font-size: 14px; font-weight: 800; margin-bottom: 3px; }
 .decidedBannerSub      { font-size: 12px; color: #6b7280; }
 
@@ -884,5 +884,5 @@
 .modalImg      { max-width: 100%; max-height: 65vh; object-fit: contain; display: block; }
 .modalIframe   { width: 100%; height: 65vh; border: none; }
 .modalLoading  { display: flex; align-items: center; justify-content: center; flex: 1; padding: 60px; }
-.modalSpinner  { width: 28px; height: 28px; border: 3px solid #f3f4f6; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.7s linear infinite; }
+.modalSpinner  { width: 28px; height: 28px; border: 3px solid #f3f4f6; border-top-color: #7c3aed; border-radius: 50%; animation: spin 0.7s linear infinite; }
 .modalError    { padding: 60px; text-align: center; color: #9ca3af; }

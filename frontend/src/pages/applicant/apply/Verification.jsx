@@ -1,6 +1,6 @@
 // Step 6 — liveness and face match verification using MediaPipe. Checks 3D geometry, iris movement, specular highlights, and rPPG heartbeat signal to block static photos.
 import { useState, useEffect, useRef, memo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import * as faceapi from "face-api.js";
 import StepLayout from "../../../components/layout/StepLayout";
 import StepCard from "../../../components/apply/StepCard";
@@ -8,13 +8,14 @@ import StepNav from "../../../components/apply/StepNav";
 import { BRAND } from "../../../config/theme";
 import api from "../../../services/api";
 import { useAppState } from "../../../context/ApplicationContext";
+import coatOfArms from "../../../assets/coat-of-arms.png";
 
 const FACEAPI_MODELS_URL   = "/models";
 const HOLD_SECONDS         = 4;
 const MIN_STABLE_FRAMES    = 10;
 const MAX_ATTEMPTS         = 3;
 const CHALLENGE_TIMEOUT    = 14000; // 14s — generous window for real users
-const MIN_COVERAGE         = 0.18;
+const MIN_COVERAGE         = 0.12;
 const DISTANCE_DEBOUNCE    = 8;   // consecutive frames before a distance-state change commits
 const CONSEC_FRAMES        = 6;     // kept for reference
 
@@ -742,9 +743,12 @@ const BaselineIntroBottom = memo(function BaselineIntroBottom({ distanceState, o
 
 // main component
 export default function Verification() {
-  const navigate  = useNavigate();
-  const { state } = useAppState();
-  const appId     = state.applicationId;
+  const navigate        = useNavigate();
+  const location        = useLocation();
+  const { state }       = useAppState();
+  const isReverif       = !!(location.state?.reverification);
+  const reverifAppId    = location.state?.appId;
+  const appId           = isReverif ? reverifAppId : state.applicationId;
 
   const videoRef         = useRef(null);
   const cameraBoxVideoRef = useRef(null);
@@ -840,8 +844,8 @@ export default function Verification() {
       try {
         if (!appId) throw new Error("no_app");
         const appRes = await api.get(`/api/applicant/applications/${appId}`);
-        // already passed — jump straight to the result screen
-        if (!cancelled && appRes.data?.application?.verification_passed) {
+        // already passed — jump straight to the result screen (skip for re-verification, user must redo)
+        if (!cancelled && !isReverif && appRes.data?.application?.verification_passed) {
           setPassed(true);
           setStep(STEP.RESULT);
           return;
@@ -923,9 +927,11 @@ export default function Verification() {
       streamRef.current = stream;
       if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
       if (cameraBoxVideoRef.current) { cameraBoxVideoRef.current.srcObject = stream; cameraBoxVideoRef.current.play().catch(() => {}); }
+      await new Promise(r => setTimeout(r, 200));
       const fm = new window.FaceMesh({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
       fm.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
       fm.onResults(handleResults);
+      await fm.initialize();
       faceMeshRef.current = fm;
       const detect = async () => {
         if (videoRef.current && videoRef.current.readyState >= 2 && faceMeshRef.current)
@@ -1490,6 +1496,7 @@ export default function Verification() {
   };
 
   const finishAnalysis = async (lbpScore, indepScoreVal, depthScoreVal, motionScoreVal, eyeSpecScoreVal, peakIndepH, rppgScore, rppgBpm, challengesPassed, totalChallenges, dataUrl) => {
+    console.log("[Verification] finishAnalysis — appId:", appId, "isReverif:", isReverif);
     setStep(STEP.ANALYSING); cleanup();
     await new Promise(r => setTimeout(r, 4000));
 
@@ -1644,7 +1651,9 @@ export default function Verification() {
         fail_reason: reason,
         sharpness_score: sharpFramesRef.current.length > 0 ? Math.round(sharpFramesRef.current[0].variance) : null,
       });
-    } catch {}
+    } catch (e) {
+      console.error("[Verification] /verify POST failed:", e?.response?.status, e?.response?.data || e?.message);
+    }
 
     const deepfaceDisplayScore = dfResult?.score != null ? Math.round(dfResult.score * 100) : null;
     const { bpm: finalBpm } = computeRppgScore(rppgSamplesRef.current, rppgFpsRef.current);
@@ -1661,7 +1670,11 @@ export default function Verification() {
     setBriefSlide(0); setStep(STEP.BRIEFING);
   };
 
-  const handleContinue = () => { window.scrollTo({ top: 0, behavior: "smooth" }); navigate("/apply/review"); };
+  const handleContinue = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (isReverif) { navigate(`/applications/${reverifAppId}`, { state: { reverificationDone: true } }); }
+    else { navigate("/apply/review"); }
+  };
   const onBriefNext  = useCallback(() => setBriefSlide(p => p + 1), []);
   const onBriefBegin = useCallback(() => setStep(STEP.CAMERA), []);
   const inCameraFlow   = [STEP.CAMERA, STEP.ANALYSING].includes(step);
@@ -1669,8 +1682,31 @@ export default function Verification() {
 
 
   // Render
-  return (
-    <StepLayout currentStep={3}>
+  const wrapper = (content) => isReverif ? (
+    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: "#f5f6f8" }}>
+      <header style={{ background: "white", borderBottom: "1px solid #e9e8e7", position: "sticky", top: 0, zIndex: 40, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+        <div style={{ padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: "56px" }}>
+          <button onClick={() => navigate(`/applications/${reverifAppId}`)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", padding: 0 }}>
+            <img src={coatOfArms} alt="" style={{ width: "28px", height: "28px", objectFit: "contain" }} />
+            <div>
+              <div style={{ fontSize: "15px", fontWeight: "800", color: "#1b1c1c", letterSpacing: "-0.3px", lineHeight: 1 }}>DLRSJAM</div>
+              <div style={{ fontSize: "9px", fontWeight: "600", color: "#94a3b8", letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1.4 }}>Identity Re-verification</div>
+            </div>
+          </button>
+          <button onClick={() => navigate(`/applications/${reverifAppId}`)} style={{ background: "none", border: "1px solid #e9e8e7", borderRadius: "8px", padding: "6px 14px", fontSize: "13px", color: "#64748b", cursor: "pointer", fontWeight: "500" }}>
+            Back to Application
+          </button>
+        </div>
+      </header>
+      <main style={{ flex: 1 }}>
+        <div style={{ maxWidth: "960px", margin: "0 auto", padding: "clamp(16px,4vw,32px) clamp(12px,4vw,24px) 64px" }}>
+          {content}
+        </div>
+      </main>
+    </div>
+  ) : <StepLayout currentStep={3}>{content}</StepLayout>;
+
+  return wrapper(<>
       <style>{`
         @keyframes spin        { to { transform: rotate(360deg) } }
         @keyframes fadeIn      { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
@@ -1799,7 +1835,7 @@ export default function Verification() {
             <div style={{ flexShrink: 0, background: "#0a1628", padding: "10px 14px 12px", boxSizing: "border-box" }}>
               {phase === "baseline_camera" && <>
                 <p style={{ fontSize: "13px", fontWeight: "700", color: "white", margin: "0 0 8px", textAlign: "center" }}>
-                  {distanceState === "too_close" ? "Too close — move back" : distanceState === "far" ? "Face detected — move closer" : distanceState === "none" ? "No face detected" : holdProgress >= 100 ? "Standby…" : "Hold still…"}
+                  {distanceState === "too_close" ? "Too close — move back" : distanceState === "far" ? "Face detected — move closer" : distanceState === "none" ? "No face detected" : holdProgress >= 100 ? "Standby…" : holdProgress === 0 ? "Face detected" : "Hold still…"}
                 </p>
                 <div style={{ display: "flex", gap: "4px" }}>
                   {[0, 25, 50, 75].map((t, i) => <div key={i} style={{ flex: 1, height: "6px", borderRadius: "999px", background: holdProgress > t ? "#22c55e" : "rgba(255,255,255,0.18)", transition: "background 0.6s ease" }}/>)}
@@ -1951,12 +1987,11 @@ export default function Verification() {
 
       {!inCameraFlow && (
         <StepNav
-          onBack={() => navigate("/apply/document-upload")}
+          onBack={() => isReverif ? navigate(`/applications/${reverifAppId}`) : navigate("/apply/document-upload")}
           onContinue={handleContinue}
-          continueLabel="Continue to Review"
+          continueLabel={isReverif ? "Done — Back to Application" : "Continue to Review"}
           continueDisabled={!canContinue}
         />
       )}
-    </StepLayout>
-  );
+    </>);
 }

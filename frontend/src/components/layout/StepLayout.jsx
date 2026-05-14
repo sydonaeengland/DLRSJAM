@@ -1,4 +1,5 @@
 // Wrapper used by each apply-flow step — consistent padding and background.
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { BRAND } from "../../config/theme";
 import coatOfArms from "../../assets/coat-of-arms.png";
@@ -18,6 +19,8 @@ const STEPS = [
 export default function StepLayout({ children, currentStep, onExit }) {
   const navigate = useNavigate();
   const { state, reset } = useAppState();
+
+  useEffect(() => { window.scrollTo(0, 0); }, []);
 
   const handleExit = () => {
     if (onExit) {

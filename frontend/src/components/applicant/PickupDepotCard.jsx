@@ -4,7 +4,7 @@ import { BRAND } from "../../config/theme";
 export default function PickupDepotCard({ collectorateName, collectorateAddress, lat, lng, approvedApp }) {
   const hasCoords = lat && lng;
   const embedSrc = hasCoords
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.004},${lat - 0.003},${lng + 0.004},${lat + 0.003}&layer=mapnik&marker=${lat},${lng}`
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.004},${lat - 0.003},${lng + 0.004},${lat + 0.003}&layer=mapnik&mlat=${lat}&mlon=${lng}`
     : null;
   const directionsHref = hasCoords
     ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
@@ -40,7 +40,7 @@ export default function PickupDepotCard({ collectorateName, collectorateAddress,
               </span>
             </div>
             <p style={{ fontSize: "14px", fontWeight: "700", color: "#1b1c1c", margin: "0 0 2px" }}>
-              {collectorateName} Tax Office
+              {collectorateName}
             </p>
             {collectorateAddress && (
               <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 2px" }}>{collectorateAddress}</p>

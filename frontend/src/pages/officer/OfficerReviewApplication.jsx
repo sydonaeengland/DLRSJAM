@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import styles from "./OfficerReviewApplication.module.css";
+import coatOfArms from "../../assets/coat-of-arms.png";
 
 import StepBar         from "../../components/officer/review/StepBar";
 import EscalatedView   from "../../components/officer/review/EscalatedView";
@@ -46,6 +47,7 @@ const ArrowUpIcon = p => <Ico {...p} size={15} d="M12 19V5M5 12l7-7 7 7" />;
 const ChevLeft    = p => <Ico {...p} d="M15 18l-6-6 6-6" />;
 const ChevRight   = p => <Ico {...p} d="M9 18l6-6-6-6" />;
 const BellIcon    = p => <Ico {...p} d={["M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9","M13.73 21a2 2 0 0 1-3.46 0"]} />;
+const ShieldIcon  = p => <Ico {...p} size={15} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />;
 
 const TX_LABEL = { RENEWAL: "Renewal", REPLACEMENT: "Replacement", AMENDMENT: "Amendment" };
 const TX_COLOR = { RENEWAL: "#2563eb", REPLACEMENT: "#d97706", AMENDMENT: "#16a34a" };
@@ -478,11 +480,12 @@ export default function OfficerReviewApplication() {
   const initials    = `${applicant?.firstname?.[0] || ""}${applicant?.lastname?.[0] || ""}`.toUpperCase();
 
   const NAV = [
-    { id: "overview",  label: "Overview",            Icon: GridIcon    },
-    { id: "active",    label: "Active Reviews",       Icon: InboxIcon   },
-    { id: "waiting",   label: "Waiting on Applicant", Icon: RotateIcon  },
-    { id: "escalated", label: "Escalated",            Icon: ArrowUpIcon },
-    { id: "approved",  label: "Approved by Me",       Icon: p => <Ico {...p} size={15} sw={2.5} d="M5 12l5 5L20 7" /> },
+    { id: "overview",    label: "Overview",            Icon: GridIcon    },
+    { id: "active",      label: "Active Reviews",      Icon: InboxIcon   },
+    { id: "pending_ita", label: "Pending ITA",         Icon: ShieldIcon  },
+    { id: "waiting",     label: "Waiting on Applicant",Icon: RotateIcon  },
+    { id: "escalated",   label: "Escalated",           Icon: ArrowUpIcon },
+    { id: "approved",    label: "Approved by Me",      Icon: CheckIcon   },
   ];
 
   return (
@@ -493,15 +496,13 @@ export default function OfficerReviewApplication() {
       <aside className={`${styles.navSidebar} ${collapsed ? styles.navCollapsed : styles.navExpanded}`}>
         <div className={`${styles.navSidebarHeader} ${collapsed ? styles.navCollapsed : styles.navExpanded}`}>
           {!collapsed && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 26, height: 26, background: "#111827", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+              <div style={{ width: 26, height: 26, background: "rgba(255,255,255,0.15)", borderRadius: 7, border: "1px solid rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <img src={coatOfArms} alt="" style={{ width: 18, height: 18, objectFit: "contain" }} />
               </div>
               <div>
-                <p style={{ fontSize: 12, fontWeight: 800, color: "#111827", letterSpacing: "-0.2px" }}>DLRSJAM</p>
-                <p style={{ fontSize: 9, color: "#9ca3af", letterSpacing: "0.06em", textTransform: "uppercase" }}>Officer Portal</p>
+                <p style={{ fontSize: 12, fontWeight: 800, color: "white", letterSpacing: "-0.2px", margin: 0 }}>DLRSJAM</p>
+                <p style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em", textTransform: "uppercase", margin: 0 }}>Officer Portal</p>
               </div>
             </div>
           )}
@@ -517,7 +518,7 @@ export default function OfficerReviewApplication() {
               onClick={() => navigate(`/officer?page=${id}`)}
               title={collapsed ? label : undefined}>
               <span style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 9 }}>
-                <Icon stroke="#6b7280" />
+                <Icon stroke="currentColor" />
                 {!collapsed && <span className={styles.navLabel}>{label}</span>}
               </span>
             </button>
@@ -525,9 +526,9 @@ export default function OfficerReviewApplication() {
         </nav>
 
         {!collapsed && (
-          <div style={{ padding: "12px 14px", borderTop: "1px solid #f3f4f6", flexShrink: 0 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>{user?.name || "Officer"}</p>
-            <p style={{ fontSize: 10, color: "#9ca3af", marginTop: 1 }}>{user?.staff_id || ""}</p>
+          <div style={{ padding: "12px 14px", borderTop: "1px solid rgba(255,255,255,0.07)", flexShrink: 0 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>{user?.name || "Officer"}</p>
+            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>{user?.staff_id || ""}</p>
           </div>
         )}
       </aside>

@@ -426,13 +426,21 @@ def verify_identity(user, app_id):
     app.verified_at           = datetime.now(timezone.utc)
     app.verification_photo    = verification_photo
 
+    was_reverif = app.reverification_requested
+    prev_status = app.status
+
     if passed:
         app.needs_manual_review      = False
         app.manual_review_reason     = None
         app.reverification_requested = False
+        if was_reverif:
+            app.status = "UNDER_REVIEW"
     else:
         app.needs_manual_review  = True
         app.manual_review_reason = fail_reason if fail_reason else "Liveness verification failed"
+        if was_reverif:
+            app.reverification_requested = False
+            app.status = "UNDER_REVIEW"
 
     verification = VerificationResult(
         application_fk=app_id,
@@ -471,6 +479,20 @@ def verify_identity(user, app_id):
             event_type="VERIFICATION_PASSED",
             comment=f"Liveness verification passed. {score_summary}.",
         ))
+        if was_reverif:
+            db.session.add(ApplicationEvent(
+                application_fk=app.id,
+                triggered_by_user_id=user.id,
+                event_type="STATUS_CHANGE",
+                from_status=prev_status,
+                to_status="UNDER_REVIEW",
+                comment="Re-verification passed — returned to officer review queue.",
+            ))
+            if app.assigned_officer_id:
+                _notify(
+                    app.assigned_officer_id, app, "VERIFICATION_PASSED",
+                    f"Re-verification passed for application {app.application_number}. Ready for review.",
+                )
     else:
         fail_detail = fail_reason if fail_reason else "See scores."
         db.session.add(ApplicationEvent(
@@ -479,6 +501,20 @@ def verify_identity(user, app_id):
             event_type="VERIFICATION_ATTEMPT_FAILED",
             comment=f"Liveness verification attempt {app.verification_attempts} failed. {fail_detail} Scores — {score_summary}.",
         ))
+        if was_reverif:
+            db.session.add(ApplicationEvent(
+                application_fk=app.id,
+                triggered_by_user_id=user.id,
+                event_type="STATUS_CHANGE",
+                from_status=prev_status,
+                to_status=app.status,
+                comment="Re-verification failed — manual review required.",
+            ))
+            if app.assigned_officer_id:
+                _notify(
+                    app.assigned_officer_id, app, "VERIFICATION_ATTEMPT_FAILED",
+                    f"Re-verification failed for application {app.application_number}. Manual review required.",
+                )
 
     if not passed and app.verification_attempts >= 3:
         db.session.add(ApplicationEvent(

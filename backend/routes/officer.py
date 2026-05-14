@@ -383,6 +383,14 @@ def approve(user, app_id):
             app.user_id_fk, app, "DIGITAL_LICENCE_GENERATED",
             f"Your digital licence has been generated for application {app.application_number}. You can view it on your dashboard.",
         )
+        db.session.add(ApplicationEvent(
+            application_fk=app.id,
+            triggered_by_user_id=user.id,
+            event_type="DIGITAL_LICENCE_GENERATED",
+            from_status="APPROVED",
+            to_status="APPROVED",
+            comment="Digital licence generated and available for download.",
+        ))
 
     db.session.add(ApplicationEvent(
         application_fk=app.id,

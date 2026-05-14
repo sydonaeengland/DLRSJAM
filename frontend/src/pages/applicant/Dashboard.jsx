@@ -61,60 +61,69 @@ const DESIGN_H = Math.round(DESIGN_W / 1.586);
 const PDF_W = 1040;
 const PDF_H = Math.round(PDF_W / 1.586);
 
-function DownloadLicenceButton({ frontRef, backRef, licence }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+function DownloadLicenceButton({ frontRef, backRef }) {
+  const download = () => {
+    const frontWrap = frontRef.current;
+    const backWrap  = backRef.current;
+    if (!frontWrap || !backWrap) return;
 
-  const download = async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const [domToImage, { jsPDF: _jsPDF }] = await Promise.all([
-        import("dom-to-image-more").then(m => m.default),
-        import("jspdf"),
-      ]);
+    const W = 520;
+    const H = 328;
 
-      // Capture at 2× the design size for crisp output
-      const opts = { width: DESIGN_W, height: DESIGN_H, scale: 2 };
-      const [frontDataUrl, backDataUrl] = await Promise.all([
-        domToImage.toPng(frontRef.current, opts),
-        domToImage.toPng(backRef.current, opts),
-      ]);
+    // Copy all stylesheets from parent page into the popup
+    const styles = Array.from(document.styleSheets).map(ss => {
+      try { return Array.from(ss.cssRules).map(r => r.cssText).join("\n"); }
+      catch { return ss.href ? `@import url('${ss.href}');` : ""; }
+    }).join("\n");
 
-      const pdf = new _jsPDF({ orientation: "landscape", unit: "px", format: [PDF_W, PDF_H] });
-      pdf.addImage(frontDataUrl, "PNG", 0, 0, PDF_W, PDF_H);
-      pdf.addPage([PDF_W, PDF_H], "landscape");
-      pdf.addImage(backDataUrl, "PNG", 0, 0, PDF_W, PDF_H);
-      pdf.save(`dlrsjam-licence-${licence?.control_number ?? "card"}.pdf`);
-    } catch (e) {
-      console.error("PDF export failed", e);
-      setError(true);
-    } finally {
-      setLoading(false);
+    // The flip card structure: wrapper > rotator > [frontFace, backFace]
+    // Each face is position:absolute with the actual card content inside
+    const rotator = frontWrap.firstElementChild?.firstElementChild;
+    const frontFaceEl = rotator?.children[0];
+    const backFaceEl  = rotator?.children[1];
+    if (!frontFaceEl || !backFaceEl) return;
+
+    // Clone and strip 3D transforms
+    function cleanClone(el) {
+      const c = el.cloneNode(true);
+      [c, ...c.querySelectorAll("*")].forEach(n => {
+        if (n.style) { n.style.transform = ""; n.style.backfaceVisibility = ""; n.style.WebkitBackfaceVisibility = ""; n.style.transformStyle = ""; n.style.perspective = ""; }
+      });
+      return c.innerHTML;
     }
+
+    const frontHTML = cleanClone(frontFaceEl);
+    const backHTML  = cleanClone(backFaceEl);
+
+    const popup = window.open("", "_blank", `width=${W},height=${H * 2 + 40}`);
+    popup.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  ${styles}
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  @page { size: ${W}px ${H * 2 + 24}px; margin: 0; }
+  body { margin: 0; padding: 0; background: white; }
+  .card-wrap { position: relative; width: ${W}px; height: ${H}px; border-radius: 18px; overflow: hidden; }
+  .card-wrap + .card-wrap { margin-top: 24px; }
+</style>
+</head><body>
+<div class="card-wrap">${frontHTML}</div>
+<div class="card-wrap">${backHTML}</div>
+</body></html>`);
+    popup.document.close();
+    popup.focus();
+    // Wait for fonts/images to load then print
+    popup.onload = () => { popup.print(); };
+    setTimeout(() => { try { popup.print(); } catch(e) {} }, 800);
   };
 
   return (
-    <>
-      <button
-        onClick={download}
-        disabled={loading}
-        style={{ width: "100%", background: loading ? "#94a3b8" : BRAND.primary, border: "none", borderRadius: "10px", padding: "10px 14px", fontSize: "13px", fontWeight: "700", color: "white", cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
-      >
-        {loading ? (
-          <>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
-            Generating PDF…
-          </>
-        ) : (
-          <>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Download PDF
-          </>
-        )}
-      </button>
-      {error && <p style={{ fontSize: "11px", color: "#dc2626", margin: "4px 0 0", textAlign: "center" }}>Export failed — please try again.</p>}
-    </>
+    <button
+      onClick={download}
+      style={{ width: "100%", background: BRAND.primary, border: "none", borderRadius: "10px", padding: "10px 14px", fontSize: "13px", fontWeight: "700", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Save as PDF
+    </button>
   );
 }
 
@@ -424,6 +433,7 @@ export default function Dashboard() {
   const [isFlipped, setIsFlipped] = useState(false);
   const frontRef = useRef(null);
   const backRef  = useRef(null);
+  const cardRef  = useRef(null);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
 
   const fullName = user?.name || "Applicant";
@@ -501,7 +511,7 @@ export default function Dashboard() {
   }, []);
 
   const signatureImage = applications
-    .filter(a => a.signature_image)
+    .filter(a => a.status === "APPROVED" && a.signature_image)
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]?.signature_image ?? null;
 
   const displayLicence = {
@@ -528,7 +538,7 @@ export default function Dashboard() {
   const approvedApp = applications.find(a => a.status === "APPROVED");
 
   const collectorateName = pickupCollectorate
-    ? pickupCollectorate.full.replace(/^\d+\s*/, "").split("(")[0].trim()
+    ? pickupCollectorate.full.replace(/^\d+\s*/, "").trim()
     : null;
   const collectorateAddress = pickupCollectorate?.address ?? null;
   const collectorateLat = pickupCollectorate?.lat ?? null;
@@ -649,7 +659,7 @@ export default function Dashboard() {
             <div style={{ background: "white", borderRadius: "16px", border: "1px solid #e9e8e7", padding: "24px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)", display: "flex", gap: "24px", alignItems: "flex-start" }}>
               {/* Card + flip hint */}
               <div style={{ flex: "0 0 auto", width: "min(520px, 100%)" }}>
-                <div onClick={() => setIsFlipped(v => !v)} style={{ cursor: "pointer" }}>
+                <div ref={cardRef} onClick={() => setIsFlipped(v => !v)} style={{ cursor: "pointer" }}>
                   <LicenceCard
                     licence={displayLicence}
                     isFlipped={isFlipped}
@@ -660,6 +670,15 @@ export default function Dashboard() {
                 <p style={{ fontSize: "11px", color: "#94a3b8", margin: "8px 0 0", textAlign: "center" }}>
                   Tap card to flip
                 </p>
+                {/* Off-screen renders — used to grab innerHTML for popup print */}
+                <div style={{ position: "fixed", left: "-9999px", top: 0, pointerEvents: "none", visibility: "hidden" }}>
+                  <div ref={frontRef} style={{ width: "520px", height: "328px", borderRadius: "18px", overflow: "hidden", position: "relative" }}>
+                    <LicenceCard licence={displayLicence} isFlipped={false} isExpired={isExpired} isExpiringSoon={isExpiringSoon} />
+                  </div>
+                  <div ref={backRef} style={{ width: "520px", height: "328px", borderRadius: "18px", overflow: "hidden", position: "relative" }}>
+                    <LicenceCard licence={displayLicence} isFlipped={true} isExpired={isExpired} isExpiringSoon={isExpiringSoon} />
+                  </div>
+                </div>
               </div>
 
               {/* Right info + actions */}
@@ -674,7 +693,7 @@ export default function Dashboard() {
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <DownloadLicenceButton frontRef={frontRef} backRef={backRef} licence={displayLicence} />
+                  <DownloadLicenceButton frontRef={frontRef} backRef={backRef} />
                   <button
                     onClick={() => setIsFlipped(v => !v)}
                     style={{ width: "100%", background: "none", border: "1.5px solid #e9e8e7", borderRadius: "10px", padding: "10px 14px", fontSize: "13px", fontWeight: "600", color: "#374151", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
@@ -789,15 +808,7 @@ export default function Dashboard() {
 
       {showAccountSettings && <AccountSettingsModal onClose={() => setShowAccountSettings(false)} />}
 
-      {/* Hidden cards for PDF capture — sized at DESIGN_W so scale=1, dom-to-image scales up */}
-      <div style={{ position: "fixed", left: -9999, top: 0, pointerEvents: "none", zIndex: -1 }}>
-        <div ref={frontRef} style={{ width: DESIGN_W, height: DESIGN_H, overflow: "hidden", borderRadius: 18, flexShrink: 0 }}>
-          <LicenceCard licence={displayLicence} isFlipped={false} isExpired={isExpired} isExpiringSoon={isExpiringSoon} />
-        </div>
-        <div ref={backRef} style={{ width: DESIGN_W, height: DESIGN_H, overflow: "hidden", borderRadius: 18, flexShrink: 0, marginTop: 8 }}>
-          <LicenceCard licence={displayLicence} isFlipped={true} isExpired={isExpired} isExpiringSoon={isExpiringSoon} />
-        </div>
-      </div>
+
     </DashboardLayout>
   );
 }

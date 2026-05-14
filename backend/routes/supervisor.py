@@ -258,6 +258,7 @@ def get_application(user, app_id):
         "original_filename": d.original_filename,
         "review_status":     d.review_status,
         "review_comment":    d.review_comment,
+        "reviewed_at":       d.reviewed_at.isoformat() if d.reviewed_at else None,
         "uploaded_at":       d.uploaded_at.isoformat() if d.uploaded_at else None,
         "is_current":        d.is_current,
     } for d in app.documents if d.is_current]
@@ -343,10 +344,14 @@ def get_application(user, app_id):
             "new_address_line2":      app.new_address_line2,
             "new_parish":             app.new_parish,
             "new_occupation":         app.new_occupation,
-            "needs_manual_review":    app.needs_manual_review,
-            "face_match_score":       app.face_match_score,
+            "needs_manual_review":       app.needs_manual_review,
+            "manual_review_reason":      app.manual_review_reason,
+            "reverification_requested":  app.reverification_requested,
+            "face_match_score":          app.face_match_score,
             "liveness_score":         app.liveness_score,
             "verification_passed":    app.verification_passed,
+            "verification_attempts":  app.verification_attempts,
+            "verified_at":            app.verified_at.isoformat() if app.verified_at else None,
             "pickup_collectorate":    app.pickup_collectorate.full if app.pickup_collectorate else None,
             "sla_status":             sla["status"],
             "hours_remaining":        sla["hours_remaining"],
@@ -354,6 +359,17 @@ def get_application(user, app_id):
             "officer_decision":       officer_decision,
             "documents":              documents,
             "events":                 events,
+            "verification_result": {
+                "ocr_name":             app.face_verification.ocr_name             if app.face_verification else None,
+                "ocr_dob":              str(app.face_verification.ocr_dob)         if app.face_verification and app.face_verification.ocr_dob else None,
+                "ocr_id_number":        app.face_verification.ocr_id_number        if app.face_verification else None,
+                "ocr_confidence":       app.face_verification.ocr_confidence       if app.face_verification else None,
+                "face_match_score":     app.face_verification.face_match_score     if app.face_verification else None,
+                "liveness_score":       app.face_verification.liveness_score       if app.face_verification else None,
+                "liveness_passed":      app.face_verification.liveness_passed      if app.face_verification else None,
+                "requires_manual_review": app.face_verification.requires_manual_review if app.face_verification else None,
+                "verified_at":          app.face_verification.verified_at.isoformat() if app.face_verification and app.face_verification.verified_at else None,
+            } if app.face_verification else None,
         },
         "applicant": {
             "firstname":     profile.firstname     if profile else None,
@@ -386,6 +402,150 @@ def get_application(user, app_id):
             "signature": officer_profile.signature_image if officer_profile else None,
         },
     }), 200
+
+
+# Verification overrides — supervisor can clear manual review flag or override verification pass/fail
+
+@supervisor_bp.route("/applications/<int:app_id>/clear-manual-review", methods=["POST"])
+@require_supervisor
+def clear_manual_review(user, app_id):
+    try:
+        app = Application.query.get(app_id)
+        if not app:
+            return jsonify({"error": "Application not found"}), 404
+        sup_name = _supervisor_name(user)
+        app.needs_manual_review  = False
+        app.manual_review_reason = None
+        db.session.add(ApplicationEvent(
+            application_fk=app.id,
+            triggered_by_user_id=user.id,
+            event_type="MANUAL_REVIEW_CLEARED",
+            comment=f"[Supervisor] {sup_name} cleared the manual review flag.",
+        ))
+        db.session.commit()
+        return jsonify({"ok": True}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"clear_manual_review error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@supervisor_bp.route("/applications/<int:app_id>/override-verification", methods=["POST"])
+@require_supervisor
+def override_verification(user, app_id):
+    """Supervisor can mark verification as passed or failed, overriding the system result."""
+    try:
+        app = Application.query.get(app_id)
+        if not app:
+            return jsonify({"error": "Application not found"}), 404
+        data   = request.get_json() or {}
+        result = data.get("result")  # "pass" | "fail"
+        reason = data.get("reason", "").strip()
+        if result not in ("pass", "fail"):
+            return jsonify({"error": "result must be 'pass' or 'fail'"}), 400
+        if not reason:
+            return jsonify({"error": "A reason is required for a verification override"}), 400
+        app.verification_passed  = (result == "pass")
+        app.needs_manual_review  = False
+        app.manual_review_reason = None
+        sup_name = _supervisor_name(user)
+        db.session.add(ApplicationEvent(
+            application_fk=app.id,
+            triggered_by_user_id=user.id,
+            event_type="VERIFICATION_OVERRIDE",
+            comment=f"[Supervisor Override] Verification marked as {'PASSED' if result == 'pass' else 'FAILED'} by {sup_name}: {reason}",
+        ))
+        db.session.commit()
+        return jsonify({"verification_passed": app.verification_passed}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"override_verification error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@supervisor_bp.route("/applications/<int:app_id>/request-reverification", methods=["POST"])
+@require_supervisor
+def request_reverification(user, app_id):
+    try:
+        app = Application.query.get(app_id)
+        if not app:
+            return jsonify({"error": "Application not found"}), 404
+        sup_name = _supervisor_name(user)
+        prev_status = app.status
+        app.reverification_requested = True
+        app.needs_manual_review      = True
+        app.status                   = "ACTION_REQUIRED"
+        db.session.add(ApplicationEvent(
+            application_fk=app.id,
+            triggered_by_user_id=user.id,
+            event_type="REVERIFICATION_REQUESTED",
+            from_status=prev_status,
+            to_status="ACTION_REQUIRED",
+            comment=f"[Supervisor] {sup_name} requested the applicant to redo identity verification.",
+        ))
+        _notify(
+            app.user_id_fk, app, "REVERIFICATION_REQUESTED",
+            f"Action required on application {app.application_number}: please redo your identity verification.",
+        )
+        db.session.commit()
+        return jsonify({"ok": True}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"request_reverification error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# Document review — supervisor can accept, reject, or flag for resubmission
+
+@supervisor_bp.route("/applications/<int:app_id>/documents/<int:doc_id>/review", methods=["POST"])
+@require_supervisor
+def review_document(user, app_id, doc_id):
+    app = Application.query.get(app_id)
+    if not app:
+        return jsonify({"error": "Application not found"}), 404
+    doc = Document.query.filter_by(id=doc_id, application_fk=app_id).first()
+    if not doc:
+        return jsonify({"error": "Document not found"}), 404
+    data = request.get_json() or {}
+    status = data.get("status", "").upper()
+    if status not in ("APPROVED", "RESUBMIT_REQUIRED", "REJECTED"):
+        return jsonify({"error": "Invalid review status"}), 400
+    doc.review_status = status
+    doc.review_comment = data.get("comment", "")
+    doc.reviewed_by_user_id = user.id
+    doc.reviewed_at = datetime.now(timezone.utc)
+    db.session.add(ApplicationEvent(
+        application_fk=app_id,
+        triggered_by_user_id=user.id,
+        event_type="DOCUMENT_REVIEW",
+        comment=f"[Supervisor] {doc.doc_type}: {status} — {doc.review_comment}",
+    ))
+    db.session.commit()
+    return jsonify({"review_status": doc.review_status}), 200
+
+
+@supervisor_bp.route("/applications/<int:app_id>/documents/<int:doc_id>/review", methods=["DELETE"])
+@require_supervisor
+def remove_document_review(user, app_id, doc_id):
+    app = Application.query.get(app_id)
+    if not app:
+        return jsonify({"error": "Application not found"}), 404
+    doc = Document.query.filter_by(id=doc_id, application_fk=app_id).first()
+    if not doc:
+        return jsonify({"error": "Document not found"}), 404
+    prev = doc.review_status or "NONE"
+    doc.review_status = None
+    doc.review_comment = None
+    doc.reviewed_by_user_id = None
+    doc.reviewed_at = None
+    db.session.add(ApplicationEvent(
+        application_fk=app_id,
+        triggered_by_user_id=user.id,
+        event_type="DOCUMENT_REVIEW",
+        comment=f"[Supervisor] {doc.doc_type}: decision removed (was {prev})",
+    ))
+    db.session.commit()
+    return jsonify({"review_status": None}), 200
 
 
 # Document file proxy
@@ -436,6 +596,18 @@ def approve(user, app_id):
         )
         db.session.add(dl)
         app.digital_licence_generated_at = datetime.now(timezone.utc)
+        _notify(
+            app.user_id_fk, app, "DIGITAL_LICENCE_GENERATED",
+            f"Your digital licence has been generated for application {app.application_number}. You can view it on your dashboard.",
+        )
+        db.session.add(ApplicationEvent(
+            application_fk=app.id,
+            triggered_by_user_id=user.id,
+            event_type="DIGITAL_LICENCE_GENERATED",
+            from_status="APPROVED",
+            to_status="APPROVED",
+            comment="Digital licence generated and available for download.",
+        ))
 
     licence = LicenceRecord.query.filter_by(user_id_fk=app.user_id_fk).first()
     if licence:
@@ -496,15 +668,14 @@ def request_resubmit(user, app_id):
     data = request.get_json() or {}
     items    = data.get("items", [])
     comments = data.get("comments", "").strip()
-    if not items:
-        return jsonify({"error": "At least one item must be selected"}), 400
     if not comments:
         return jsonify({"error": "Comments for the applicant are required"}), 400
 
     sup_name = _supervisor_name(user)
     prev_status = app.status
     app.status = "WAITING_ON_APPLICANT"
-    app.officer_comment = f"[Supervisor Resubmission Request] {comments}\nItems: {', '.join(items)}"
+    items_note = f"\nItems: {', '.join(items)}" if items else ""
+    app.officer_comment = f"[Supervisor Resubmission Request] {comments}{items_note}"
 
     db.session.add(ApplicationEvent(
         application_fk=app.id,
@@ -512,7 +683,7 @@ def request_resubmit(user, app_id):
         event_type="SUPERVISOR_DECISION",
         from_status=prev_status,
         to_status="WAITING_ON_APPLICANT",
-        comment=f"Resubmission requested by Supervisor {sup_name}: {comments} | Items: {', '.join(items)}",
+        comment=f"Resubmission requested by Supervisor {sup_name}: {comments}{items_note}",
     ))
 
     _notify(

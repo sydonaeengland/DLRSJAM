@@ -21,14 +21,13 @@ if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
   document.head.appendChild(s);
 }
 
-const SW = 40; // stripe width
+const SW = 40;
 
 const CARD_BG = `
   radial-gradient(700px 400px at 100% 0%, oklch(0.97 0.08 95 / 0.85), transparent 60%),
   radial-gradient(600px 360px at 0% 100%, oklch(0.95 0.06 240 / 0.55), transparent 60%),
   linear-gradient(180deg, oklch(0.985 0.02 95) 0%, oklch(0.97 0.03 100) 100%)`;
 
-// background security pattern — concentric rings + sine waves
 function GuillocheF() {
   const rings = Array.from({ length: 16 }, (_, i) => ({ r: 20 + i * 12, op: Math.max(0, 0.6 - i * 0.025) }));
   const waves = Array.from({ length: 18 }, (_, i) => {
@@ -93,7 +92,6 @@ function HoloBand() {
   );
 }
 
-// green stripe on the left edge with dots and vertical text
 function Stripe({ label }) {
   const dot = {
     width: 6, height: 6, borderRadius: "50%",
@@ -134,7 +132,6 @@ function Stripe({ label }) {
   );
 }
 
-// individual field box — label on top, value below
 function Field({ label, children, value, mono, tint, bold, style: sx, valSx }) {
   return (
     <div style={{
@@ -205,13 +202,9 @@ function Barcode({ value }) {
   );
 }
 
-// front face of the card
-function Front({ licence, isExpired, isExpiringSoon }) {
+export function LicenceFront({ licence, isExpired, isExpiringSoon }) {
   const expCol = isExpired ? "#dc2626" : isExpiringSoon ? "#d97706" : undefined;
   const PL = SW + 12;
-
-  // Photo column width — large enough to be meaningful but leaves room for fields
-  const PHOTO_W = 118;
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden", background: CARD_BG, fontFamily: "'IBM Plex Sans', sans-serif" }}>
@@ -272,7 +265,7 @@ function Front({ licence, isExpired, isExpiringSoon }) {
         )}
       </div>
 
-      {/* main content grid — photo on the right, fields on the left */}
+      {/* main content grid */}
       <div style={{
         position: "relative", zIndex: 5,
         paddingLeft: PL, paddingRight: 10,
@@ -283,28 +276,20 @@ function Front({ licence, isExpired, isExpiringSoon }) {
         columnGap: 8, rowGap: 4,
         height: "calc(100% - 52px)", boxSizing: "border-box",
       }}>
-
-        {/* top row */}
         <div style={{ gridColumn: 1, display: "grid", gridTemplateColumns: "52px 1fr", gap: 4 }}>
           <Field label="Class" value={licence?.licence_class ?? "—"} tint />
           <Field label="TRN" value={licence?.trn ?? "—"} mono bold />
         </div>
-
-        {/* dates row */}
         <div style={{ gridColumn: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
           <Field label="Date Issued" value={licence?.issue_date ?? "—"} mono />
           <Field label="Collectorate" value={licence?.collectorate ?? "—"} />
         </div>
-
-        {/* expiry / dob / sex */}
         <div style={{ gridColumn: 1, display: "grid", gridTemplateColumns: "1fr 1fr 26px", gap: 4 }}>
           <Field label="Expiry Date" value={licence?.expiry_date ?? "—"} mono
             valSx={expCol ? { color: expCol, fontWeight: 700 } : undefined} />
           <Field label="Birth Date" value={licence?.date_of_birth ?? "—"} mono />
           <Field label="Sex" value={licence?.sex ?? "—"} mono />
         </div>
-
-        {/* name */}
         <Field label="Name" style={{ gridColumn: 1, paddingTop: 5, paddingBottom: 6 }}>
           <div style={{ lineHeight: 1.35 }}>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: "oklch(0.18 0.05 250)", textTransform: "uppercase" }}>
@@ -317,8 +302,6 @@ function Front({ licence, isExpired, isExpiringSoon }) {
             )}
           </div>
         </Field>
-
-        {/* address — fills the remaining space on the left */}
         <Field label="Address" style={{ gridColumn: 1, gridRow: "5 / 7", overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 9.5, fontWeight: 400, lineHeight: 1.45, color: "oklch(0.22 0.05 250)", textTransform: "uppercase", overflow: "hidden" }}>
             {licence?.address_line1 && <div>{licence.address_line1}</div>}
@@ -328,8 +311,6 @@ function Front({ licence, isExpired, isExpiringSoon }) {
               <span style={{ fontStyle: "italic", opacity: 0.4, textTransform: "none" }}>—</span>}
           </div>
         </Field>
-
-        {/* photo — right column, stops above the signature row */}
         <div style={{ gridColumn: 2, gridRow: "1 / 6", borderRadius: 8, overflow: "hidden", position: "relative" }}>
           {licence?.photo_url ? (
             <img src={licence.photo_url} alt="Photo" style={{
@@ -347,8 +328,6 @@ function Front({ licence, isExpired, isExpiringSoon }) {
             }}>Photo</div>
           )}
         </div>
-
-        {/* signature — sits at the bottom of the right column */}
         <div style={{ gridColumn: 2, gridRow: "5 / 7", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
           {licence?.signature_image ? (
             <img src={licence.signature_image} alt="Signature"
@@ -366,8 +345,7 @@ function Front({ licence, isExpired, isExpiringSoon }) {
   );
 }
 
-// back face of the card
-function Back({ licence }) {
+export function LicenceBack({ licence }) {
   const endorsements = licence?.judicial_endorsements ?? [];
   const PL = SW + 12;
 
@@ -376,11 +354,8 @@ function Back({ licence }) {
       <FlareRays />
       <GuillocheF />
       <HoloBand />
-
-      {/* Stripe — full height, overlaps must-carry */}
       <Stripe label="Reverse" />
 
-      {/* Must-carry banner — stripe (zIndex 2-4) sits on top of this */}
       <div style={{
         position: "relative", zIndex: 1,
         paddingLeft: PL, paddingRight: 14,
@@ -394,7 +369,6 @@ function Back({ licence }) {
         Must be carried when operating a motor vehicle or applying for renewal
       </div>
 
-      {/* Back body — single column, no photo side column */}
       <div style={{
         position: "relative", zIndex: 3,
         paddingLeft: PL, paddingRight: 10,
@@ -402,8 +376,6 @@ function Back({ licence }) {
         display: "flex", flexDirection: "column", gap: 6,
         height: "calc(100% - 33px)", boxSizing: "border-box",
       }}>
-
-        {/* Top info row */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 110px", gap: 5 }}>
           <Field label="Licence to Drive"
             value={LICENCE_CLASS_LABELS[licence?.licence_class] ?? licence?.licence_class ?? "—"}
@@ -412,14 +384,11 @@ function Back({ licence }) {
             value={licence?.first_issue_date ?? licence?.issue_date ?? "—"} mono />
         </div>
 
-        {/* Endorsements table — photo is faded background inside */}
         <div style={{
           border: "1px solid rgba(30,50,120,0.12)", borderRadius: 6,
           overflow: "hidden", background: "rgba(255,255,255,0.18)", flex: 1,
-          display: "flex", flexDirection: "column",
-          position: "relative",
+          display: "flex", flexDirection: "column", position: "relative",
         }}>
-          {/* faint photo watermark behind the endorsements table */}
           {licence?.photo_url && (
             <div style={{
               position: "absolute", inset: 0, zIndex: 0,
@@ -434,8 +403,6 @@ function Back({ licence }) {
               }} />
             </div>
           )}
-
-          {/* header row */}
           <div style={{
             position: "relative", zIndex: 1,
             display: "grid", gridTemplateColumns: "74px 1fr 56px",
@@ -453,8 +420,6 @@ function Back({ licence }) {
               }}>{h}</div>
             ))}
           </div>
-
-          {/* endorsement rows */}
           <div style={{ position: "relative", zIndex: 1, flex: 1 }}>
             {endorsements.length > 0 ? endorsements.map((e, i) => (
               <div key={i} style={{
@@ -476,7 +441,6 @@ function Back({ licence }) {
           </div>
         </div>
 
-        {/* Footer row */}
         <div style={{ display: "grid", gridTemplateColumns: "72px 1fr 72px auto", gap: 5, alignItems: "end" }}>
           <Field label="Control №" value={licence?.control_number ?? "—"} mono
             style={{ background: "transparent", border: "1px solid rgba(30,50,120,0.1)" }} />
@@ -498,6 +462,202 @@ function Back({ licence }) {
   );
 }
 
+// Print versions — all colours are fully opaque hex/rgb (no oklch, no rgba transparency)
+// so browser print renderer doesn't strip them
+const PRINT_CARD_BG = "linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 40%, #f5f0e8 100%)";
+const P_FIELD_BG    = "#ffffff";
+const P_FIELD_BORD  = "#c7d0e8";
+const P_LABEL_COL   = "#3b5cb8";
+const P_VAL_COL     = "#1e2a4a";
+const P_STRIPE_BG   = "linear-gradient(180deg, #15803d 0%, #16a34a 50%, #166534 100%)";
+const P_HEADER_BG   = "#dbeafe";
+const P_BANNER_BG   = "#dbeafe";
+const P_TABLE_HEAD  = "#fef9c3";
+const P_BARCODE     = "#1e3a8a";
+
+function StripePrint({ label }) {
+  const dot = { width: 6, height: 6, borderRadius: "50%", background: "#4ade80" };
+  return (
+    <>
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: SW, zIndex: 2, background: P_STRIPE_BG }} />
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: SW, zIndex: 4, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between", padding: "12px 0" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}><div style={dot} /><div style={dot} /><div style={dot} /></div>
+        <div style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 8, fontWeight: 600, letterSpacing: "0.28em", textTransform: "uppercase", color: "#dcfce7" }}>{label}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}><div style={dot} /><div style={dot} /><div style={dot} /></div>
+      </div>
+    </>
+  );
+}
+
+function FieldPrint({ label, children, value, mono, tint, bold, style: sx, valSx }) {
+  return (
+    <div style={{ border: `1px solid ${P_FIELD_BORD}`, borderRadius: 4, padding: "3px 5px 4px", background: P_FIELD_BG, boxSizing: "border-box", minHeight: 0, ...sx }}>
+      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 6.5, letterSpacing: "0.13em", textTransform: "uppercase", color: P_LABEL_COL, fontWeight: 500, marginBottom: 2 }}>{label}</div>
+      {children ?? (
+        <div style={{ fontSize: 10.5, fontWeight: bold ? 700 : 500, fontFamily: mono ? "'IBM Plex Mono', monospace" : "'IBM Plex Sans', sans-serif", letterSpacing: mono ? "0.04em" : "0.02em", lineHeight: 1.2, textTransform: "uppercase", color: tint ? "#1e40af" : P_VAL_COL, fontWeight: tint ? 700 : (bold ? 700 : 500), ...valSx }}>{value}</div>
+      )}
+    </div>
+  );
+}
+
+function GuillocheP() {
+  const waves = Array.from({ length: 14 }, (_, i) => {
+    const y = 20 + i * 28;
+    const pts = Array.from({ length: 60 }, (_, j) => {
+      const x = -10 + j * 12;
+      const yy = y + Math.sin(j * 0.3 + i * 0.7) * (5 + i * 0.3);
+      return `L ${x} ${yy.toFixed(1)}`;
+    }).join(" ");
+    return `M -10 ${y} ${pts}`;
+  });
+  return (
+    <svg viewBox="0 0 700 440" preserveAspectRatio="none"
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", opacity: 0.18, zIndex: 0 }}>
+      {waves.map((d, i) => <path key={i} d={d} stroke="#3b5cb8" strokeWidth="0.6" fill="none" />)}
+      {Array.from({ length: 14 }, (_, i) => (
+        <circle key={i} cx="595" cy="90" r={20 + i * 12} stroke="#3b5cb8" strokeWidth="0.5" fill="none" opacity={Math.max(0, 0.7 - i * 0.04)} />
+      ))}
+    </svg>
+  );
+}
+
+export function LicenceFrontPrint({ licence, isExpired, isExpiringSoon }) {
+  const expCol = isExpired ? "#dc2626" : isExpiringSoon ? "#d97706" : undefined;
+  const PL = SW + 12;
+  return (
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden", background: PRINT_CARD_BG, fontFamily: "'IBM Plex Sans', sans-serif" }}>
+      <GuillocheP />
+      <StripePrint label="Jamaica" />
+      <div style={{ position: "relative", zIndex: 5, height: 52, paddingLeft: PL, paddingRight: 12, display: "flex", alignItems: "center", gap: 10, borderBottom: `1px solid ${P_FIELD_BORD}`, flexShrink: 0, background: P_HEADER_BG }}>
+        <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: "50%", background: "#ffffff", border: `1px solid ${P_FIELD_BORD}`, display: "grid", placeItems: "center", overflow: "hidden" }}>
+          <img src={coatOfArms} alt="" style={{ width: "80%", height: "80%", objectFit: "contain" }} />
+        </div>
+        <div style={{ lineHeight: 1.1, flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 7.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "#1d4ed8", fontWeight: 600 }}>Government of Jamaica</div>
+          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.05em", marginTop: 1, textTransform: "uppercase", color: "#1e3a8a" }}>DRIVER'S LICENCE</div>
+        </div>
+        {isExpired
+          ? <div style={{ flexShrink: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", background: "#dc2626", color: "#ffffff", padding: "3px 8px", borderRadius: 999 }}>EXPIRED</div>
+          : <div style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5, fontFamily: "'IBM Plex Mono', monospace", fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", background: "#ffffff", border: `1px solid ${P_FIELD_BORD}`, padding: "3px 8px", borderRadius: 999, color: "#1d4ed8" }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", flexShrink: 0, background: isExpiringSoon ? "#d97706" : "#16a34a" }} />
+              {isExpiringSoon ? "Expiring" : "Verified"}
+            </div>
+        }
+      </div>
+      <div style={{ position: "relative", zIndex: 5, paddingLeft: PL, paddingRight: 10, paddingTop: 7, paddingBottom: 5, display: "grid", gridTemplateColumns: "60% 40%", gridTemplateRows: "auto auto auto auto 1fr 44px", columnGap: 8, rowGap: 4, height: "calc(100% - 52px)", boxSizing: "border-box" }}>
+        <div style={{ gridColumn: 1, display: "grid", gridTemplateColumns: "52px 1fr", gap: 4 }}>
+          <FieldPrint label="Class" value={licence?.licence_class ?? "—"} tint />
+          <FieldPrint label="TRN" value={licence?.trn ?? "—"} mono bold />
+        </div>
+        <div style={{ gridColumn: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+          <FieldPrint label="Date Issued" value={licence?.issue_date ?? "—"} mono />
+          <FieldPrint label="Collectorate" value={licence?.collectorate ?? "—"} />
+        </div>
+        <div style={{ gridColumn: 1, display: "grid", gridTemplateColumns: "1fr 1fr 26px", gap: 4 }}>
+          <FieldPrint label="Expiry Date" value={licence?.expiry_date ?? "—"} mono valSx={expCol ? { color: expCol, fontWeight: 700 } : undefined} />
+          <FieldPrint label="Birth Date" value={licence?.date_of_birth ?? "—"} mono />
+          <FieldPrint label="Sex" value={licence?.sex ?? "—"} mono />
+        </div>
+        <FieldPrint label="Name" style={{ gridColumn: 1, paddingTop: 5, paddingBottom: 6 }}>
+          <div style={{ lineHeight: 1.35 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0f172a", textTransform: "uppercase" }}>{licence?.lastname?.toUpperCase() || "—"}</div>
+            {(licence?.firstname || licence?.middlename) && <div style={{ fontSize: 11, fontWeight: 400, color: "#374151", textTransform: "uppercase" }}>{[licence.firstname, licence.middlename].filter(Boolean).map(n => n.toUpperCase()).join(" ")}</div>}
+          </div>
+        </FieldPrint>
+        <FieldPrint label="Address" style={{ gridColumn: 1, gridRow: "5 / 7", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <div style={{ fontSize: 9.5, lineHeight: 1.45, color: P_VAL_COL, textTransform: "uppercase", overflow: "hidden" }}>
+            {licence?.address_line1 && <div>{licence.address_line1}</div>}
+            {licence?.address_line2 && <div>{licence.address_line2}</div>}
+            {licence?.parish && <div>{licence.parish}</div>}
+          </div>
+        </FieldPrint>
+        <div style={{ gridColumn: 2, gridRow: "1 / 6", borderRadius: 8, overflow: "hidden", position: "relative", background: "#e2e8f0" }}>
+          {licence?.photo_url
+            ? <img src={licence.photo_url} alt="Photo" style={{ width: "100%", height: "120%", objectFit: "cover", objectPosition: "center 20%", display: "block", marginTop: "-15%" }} />
+            : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7280", fontSize: 7, textTransform: "uppercase" }}>Photo</div>
+          }
+        </div>
+        <div style={{ gridColumn: 2, gridRow: "5 / 7", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+          {licence?.signature_image
+            ? <img src={licence.signature_image} alt="Signature" style={{ width: "100%", height: 26, objectFit: "contain", display: "block", filter: "brightness(0)" }} />
+            : <svg viewBox="0 0 140 32" style={{ width: "100%", height: 24 }}><path d="M2 22 C 10 8, 20 28, 32 14 S 60 6, 78 20 S 110 8, 130 18" stroke={P_VAL_COL} strokeWidth="1.5" fill="none" strokeLinecap="round" /></svg>
+          }
+          <div style={{ borderTop: `1.5px solid ${P_LABEL_COL}`, marginTop: 2, marginBottom: 3 }} />
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 6, letterSpacing: "0.1em", textTransform: "uppercase", color: P_LABEL_COL, textAlign: "center" }}>Signature of Licensee</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function LicenceBackPrint({ licence }) {
+  const endorsements = licence?.judicial_endorsements ?? [];
+  const PL = SW + 12;
+  const val = licence?.control_number ?? licence?.trn;
+  const seed = (val ?? "0000000").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  const bars = Array.from({ length: 52 }, (_, i) => ((seed*(i+7)*13)%3===0)?3:((seed*(i+3)*7)%5===0)?2:1);
+  return (
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden", background: PRINT_CARD_BG, fontFamily: "'IBM Plex Sans', sans-serif" }}>
+      <GuillocheP />
+      <StripePrint label="Reverse" />
+      {/* Photo watermark */}
+      {licence?.photo_url && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 0, display: "flex", alignItems: "center", justifyContent: "flex-end", overflow: "hidden", pointerEvents: "none" }}>
+          <img src={licence.photo_url} alt="" style={{ height: "80%", width: "auto", objectFit: "cover", objectPosition: "center top", opacity: 0.12, filter: "grayscale(60%)" }} />
+        </div>
+      )}
+      <div style={{ position: "relative", zIndex: 2, paddingLeft: PL, paddingRight: 14, paddingTop: 6, paddingBottom: 6, background: P_BANNER_BG, borderBottom: `1px solid ${P_FIELD_BORD}`, fontFamily: "'IBM Plex Mono', monospace", fontSize: 7.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "#1d4ed8", textAlign: "center" }}>
+        Must be carried when operating a motor vehicle or applying for renewal
+      </div>
+      <div style={{ position: "relative", zIndex: 3, paddingLeft: PL, paddingRight: 10, paddingTop: 8, paddingBottom: 8, display: "flex", flexDirection: "column", gap: 6, height: "calc(100% - 33px)", boxSizing: "border-box" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 110px", gap: 5 }}>
+          <FieldPrint label="Licence to Drive" value={LICENCE_CLASS_LABELS[licence?.licence_class] ?? licence?.licence_class ?? "—"} valSx={{ fontSize: 10, lineHeight: 1.3 }} />
+          <FieldPrint label="Original Date of Issue" value={licence?.first_issue_date ?? licence?.issue_date ?? "—"} mono />
+        </div>
+        <div style={{ border: `1px solid ${P_FIELD_BORD}`, borderRadius: 6, overflow: "hidden", background: "#ffffff", flex: 1, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "74px 1fr 56px", background: P_TABLE_HEAD, borderBottom: `1px solid ${P_FIELD_BORD}` }}>
+            {["Date", "Judicial Endorsements", "Status"].map((h, i) => (
+              <div key={i} style={{ padding: "4px 6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: 7, letterSpacing: "0.14em", textTransform: "uppercase", color: "#1d4ed8", borderRight: i < 2 ? `1px solid ${P_FIELD_BORD}` : "none" }}>{h}</div>
+            ))}
+          </div>
+          <div style={{ flex: 1 }}>
+            {endorsements.length > 0 ? endorsements.map((e, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "74px 1fr 56px", alignItems: "center", minHeight: 24, borderBottom: i < endorsements.length - 1 ? `1px dashed ${P_FIELD_BORD}` : "none" }}>
+                <div style={{ padding: "2px 6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: 9.5, color: P_LABEL_COL, borderRight: `1px solid ${P_FIELD_BORD}` }}>{e.date}</div>
+                <div style={{ padding: "2px 6px", fontSize: 9.5, color: P_VAL_COL, borderRight: `1px solid ${P_FIELD_BORD}`, textTransform: "uppercase" }}>{e.description}</div>
+                <div style={{ padding: "2px 6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: 8, textTransform: "uppercase", color: "#b45309" }}>{e.status ?? "Active"}</div>
+              </div>
+            )) : (
+              <div style={{ display: "grid", gridTemplateColumns: "74px 1fr 56px", minHeight: 24, alignItems: "center" }}>
+                <div style={{ padding: "2px 6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: 9.5, color: P_LABEL_COL }}>—</div>
+                <div style={{ padding: "2px 6px", fontSize: 9.5, color: "#94a3b8", fontStyle: "italic" }}>No further entries</div>
+                <div />
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "72px 1fr 72px auto", gap: 5, alignItems: "end" }}>
+          <FieldPrint label="Control №" value={licence?.control_number ?? "—"} mono style={{ background: "#ffffff", border: `1px solid ${P_FIELD_BORD}` }} />
+          <FieldPrint label="TRN" value={licence?.trn ?? "—"} mono bold style={{ background: "#ffffff", border: `1px solid ${P_FIELD_BORD}` }} />
+          <FieldPrint label="Nationality" value={licence?.nationality ?? "—"} style={{ background: "#ffffff", border: `1px solid ${P_FIELD_BORD}` }} />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+            <svg viewBox="0 0 140 32" style={{ width: "100%", height: 24 }}><path d="M2 22 C 14 6, 30 30, 46 14 S 78 6, 96 22 S 122 10, 138 18" stroke={P_VAL_COL} strokeWidth="1.5" fill="none" strokeLinecap="round" /></svg>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 6.5, letterSpacing: "0.09em", textTransform: "uppercase", color: P_LABEL_COL, whiteSpace: "nowrap" }}>Commissioner · Tax Admin.</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ display: "flex", gap: "1.5px", height: 26, alignItems: "stretch" }}>
+            <div style={{ width: 2, background: P_BARCODE, borderRadius: 1 }} /><div style={{ width: 1 }} /><div style={{ width: 2, background: P_BARCODE, borderRadius: 1 }} /><div style={{ width: 3 }} />
+            {bars.map((w, i) => i%2===0 ? <div key={i} style={{ width: w, background: P_BARCODE }} /> : <div key={i} style={{ width: w+1 }} />)}
+            <div style={{ width: 3 }} /><div style={{ width: 2, background: P_BARCODE, borderRadius: 1 }} /><div style={{ width: 1 }} /><div style={{ width: 2, background: P_BARCODE, borderRadius: 1 }} />
+          </div>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, letterSpacing: "0.2em", color: P_BARCODE, textAlign: "right" }}>JM · {val ?? "0000 0000"}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LicenceCard({ licence, isFlipped, isExpired, isExpiringSoon }) {
   const shadow = `
     0 1px 0 rgba(255,255,255,0.6) inset,
@@ -513,22 +673,20 @@ export default function LicenceCard({ licence, isFlipped, isExpired, isExpiringS
         transition: "transform 0.65s cubic-bezier(0.45, 0.05, 0.55, 0.95)",
         transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
       }}>
-        {/* front */}
         <div style={{
           position: "absolute", inset: 0, borderRadius: 18, overflow: "hidden",
           backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
           boxShadow: shadow,
         }}>
-          <Front licence={licence} isExpired={isExpired} isExpiringSoon={isExpiringSoon} />
+          <LicenceFront licence={licence} isExpired={isExpired} isExpiringSoon={isExpiringSoon} />
         </div>
-        {/* back — rotated 180 so it faces the right way when flipped */}
         <div style={{
           position: "absolute", inset: 0, borderRadius: 18, overflow: "hidden",
           backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
           transform: "rotateY(180deg)",
           boxShadow: shadow,
         }}>
-          <Back licence={licence} />
+          <LicenceBack licence={licence} />
         </div>
       </div>
     </div>

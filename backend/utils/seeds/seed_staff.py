@@ -15,7 +15,8 @@ def seed_staff():
         supervisor_role = Role.query.filter_by(name="supervisor").first()
 
         # Admin
-        if not User.query.filter_by(email="admin@taj.gov.jm").first():
+        existing_admin = User.query.filter_by(email="admin@taj.gov.jm").first()
+        if not existing_admin:
             admin = User(
                 email="admin@taj.gov.jm",
                 password_hash=generate_password_hash("Admin@1234"),
@@ -24,6 +25,8 @@ def seed_staff():
             db.session.add(admin)
             db.session.flush()
             db.session.add(User_role(user_id=admin.id, role_id=admin_role.id))
+        else:
+            existing_admin.password_hash = generate_password_hash("Admin@1234")
 
         # Officers
         # Each officer is assigned to a specific collectorate branch_code.
@@ -149,7 +152,10 @@ def seed_staff():
         ]
 
         for o in officers:
-            if not User.query.filter_by(email=o["email"]).first():
+            existing_officer = User.query.filter_by(email=o["email"]).first()
+            if existing_officer:
+                existing_officer.password_hash = generate_password_hash("Officer@1234")
+            else:
                 user = User(
                     email=o["email"],
                     password_hash=generate_password_hash("Officer@1234"),
@@ -263,7 +269,10 @@ def seed_staff():
         ]
 
         for s in supervisors:
-            if not User.query.filter_by(email=s["email"]).first():
+            existing_sup = User.query.filter_by(email=s["email"]).first()
+            if existing_sup:
+                existing_sup.password_hash = generate_password_hash("Super@1234")
+            else:
                 user = User(
                     email=s["email"],
                     password_hash=generate_password_hash("Super@1234"),

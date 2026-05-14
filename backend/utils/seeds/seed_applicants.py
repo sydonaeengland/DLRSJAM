@@ -18,7 +18,7 @@ def seed_applicants():
             {"email": "janet.reid@email.com",       "password": "Janet@1234",   "trn": "987654321", "phone": "(876) 876-5678"},
             {"email": "trevor.brown@email.com",     "password": "Trevor@1234",  "trn": "456789123", "phone": "(876) 876-9012"},
             {"email": "sandra.williams@email.com",  "password": "Sandra@1234",  "trn": "321654987", "phone": "(876) 876-3456"},
-            {"email": "keisha.thompson@email.com",  "password": "Keisha@1234",  "trn": "789123456", "phone": "(876) 876-7890"},
+            # keisha.thompson excluded — kept unregistered for live demo registration
             # New 6
             {"email": "andre.morgan@email.com",     "password": "Andre@1234",   "trn": "111222333", "phone": "(876) 877-1111"},
             {"email": "natalie.gordon@email.com",   "password": "Natalie@1234", "trn": "444555666", "phone": "(876) 877-2222"},
@@ -41,6 +41,7 @@ def seed_applicants():
 
             existing_user = User.query.filter_by(email=a["email"]).first()
             if existing_user:
+                existing_user.password_hash = generate_password_hash(a["password"])
                 # Update profile with latest licence data
                 profile = Profile.query.filter_by(user_id_fk=existing_user.id).first()
                 if profile:

@@ -28,7 +28,7 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     db.init_app(app)
-    CORS(app, origins=["http://localhost:5173"], supports_credentials=True)
+    CORS(app, origins=["http://localhost:5173", "https://localhost:5173"], supports_credentials=True)
     
     # register blueprints
     from routes.auth import auth_bp

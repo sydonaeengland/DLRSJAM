@@ -1,6 +1,6 @@
 // Detailed view of a single submitted application — timeline, documents, and officer decision.
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useAppState } from "../../../context/ApplicationContext";
 import { BRAND } from "../../../config/theme";
 import api from "../../../services/api";
@@ -64,18 +64,23 @@ const DOC_TYPE_LABELS = {
 
 
 const EVENT_ICONS = {
-  CREATED:           { icon: FileIcon,     bg: "#eff6ff", color: "#2563eb" },
-  SUBMITTED:         { icon: SendIcon,     bg: "#eff6ff", color: "#2563eb" },
-  PAYMENT_CONFIRMED: { icon: CreditIcon,   bg: "#f0fdf4", color: "#16a34a" },
-  REVIEW_STARTED:    { icon: ClockIcon,    bg: "#fef9c3", color: "#d97706" },
-  ACTION_REQUIRED:   { icon: AlertIcon,    bg: "#fef2f2", color: "#dc2626" },
-  RESUBMITTED:       { icon: UploadIcon,   bg: "#e0e7ff", color: "#4338ca" },
-  ITA_REQUESTED:     { icon: ShieldIcon,   bg: "#faf5ff", color: "#7e22ce" },
-  ESCALATED:         { icon: ShieldIcon,   bg: "#fdf4ff", color: "#a21caf" },
-  APPROVED:            { icon: CheckIcon,    bg: "#f0fdf4", color: "#16a34a" },
-  REJECTED:            { icon: XIcon,        bg: "#fef2f2", color: "#dc2626" },
-  SUPERVISOR_DECISION: { icon: ShieldIcon,   bg: "#f5f3ff", color: "#7c3aed" },
-  STATUS_CHANGE:       { icon: ActivityIcon, bg: "#f8fafc", color: "#64748b" },
+  CREATED:                    { icon: FileIcon,     bg: "#eff6ff", color: "#2563eb" },
+  SUBMITTED:                  { icon: SendIcon,     bg: "#eff6ff", color: "#2563eb" },
+  PAYMENT_CONFIRMED:          { icon: CreditIcon,   bg: "#f0fdf4", color: "#16a34a" },
+  REVIEW_STARTED:             { icon: ClockIcon,    bg: "#fef9c3", color: "#d97706" },
+  ACTION_REQUIRED:            { icon: AlertIcon,    bg: "#fef2f2", color: "#dc2626" },
+  RESUBMITTED:                { icon: UploadIcon,   bg: "#e0e7ff", color: "#4338ca" },
+  ITA_REQUESTED:              { icon: ShieldIcon,   bg: "#faf5ff", color: "#7e22ce" },
+  ESCALATED:                  { icon: ShieldIcon,   bg: "#fdf4ff", color: "#a21caf" },
+  APPROVED:                   { icon: CheckIcon,    bg: "#f0fdf4", color: "#16a34a" },
+  REJECTED:                   { icon: XIcon,        bg: "#fef2f2", color: "#dc2626" },
+  SUPERVISOR_DECISION:        { icon: ShieldIcon,   bg: "#f5f3ff", color: "#7c3aed" },
+  REVERIFICATION_REQUESTED:   { icon: AlertIcon,    bg: "#fff7ed", color: "#d97706" },
+  MANUAL_REVIEW_CLEARED:      { icon: CheckIcon,    bg: "#f0fdf4", color: "#16a34a" },
+  VERIFICATION_OVERRIDE:      { icon: ShieldIcon,   bg: "#f5f3ff", color: "#7c3aed" },
+  WAITING_ON_APPLICANT:       { icon: AlertIcon,    bg: "#fff7ed", color: "#d97706" },
+  DIGITAL_LICENCE_GENERATED:  { icon: CheckIcon,    bg: "#f0fdf4", color: "#16a34a" },
+  STATUS_CHANGE:              { icon: ActivityIcon, bg: "#f8fafc", color: "#64748b" },
 };
 
 const DOC_ICON_STYLES = {
@@ -220,6 +225,7 @@ function InfoRow({ label, value }) {
 export default function ViewApplication() {
   const navigate      = useNavigate();
   const { id }        = useParams();
+  const location      = useLocation();
   const { state, update } = useAppState();
   const appId         = id || state.applicationId;
   const licenceRecord = state.licenceRecord;
@@ -241,6 +247,7 @@ export default function ViewApplication() {
   const [submitting,   setSubmitting]   = useState(false);
   const [submitted,    setSubmitted]    = useState(false);
   const [submitError,  setSubmitError]  = useState("");
+  const [reverifDone,  setReverifDone]  = useState(!!(location.state?.reverificationDone));
 
   const actionRef    = useRef(null);
   const receiptRef   = useRef(null);
@@ -258,7 +265,7 @@ export default function ViewApplication() {
         setLoading(false);
       })
       .catch(() => { setError("Could not load application."); setLoading(false); });
-  }, [appId]);
+  }, [appId, reverifDone]);
 
   const downloadAsPdf = async () => {
     if (!receiptRef.current) return;
@@ -373,6 +380,17 @@ export default function ViewApplication() {
   return (
     <DashboardLayout>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {reverifDone && (
+        <div style={{ margin: "0 0 0 0", padding: "14px 20px", background: "linear-gradient(90deg,#f0fdf4,#dcfce7)", borderBottom: "2px solid #86efac", display: "flex", alignItems: "center", gap: 12 }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 13, fontWeight: 800, color: "#15803d", margin: "0 0 2px" }}>Re-verification submitted</p>
+            <p style={{ fontSize: 12, color: "#166534", margin: 0 }}>Your identity verification has been resubmitted. An officer will review it shortly.</p>
+          </div>
+          <button onClick={() => setReverifDone(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#15803d", fontSize: 18, lineHeight: 1, padding: "0 4px" }}>×</button>
+        </div>
+      )}
 
       {/* Receipt modal */}
       {showReceipt && (
@@ -607,97 +625,74 @@ export default function ViewApplication() {
               {/* RIGHT CONTENT */}
               <div style={{ display: "flex", flexDirection: "column", gap: "16px", paddingTop: "20px", paddingBottom: "40px" }}>
 
-                {/* Verification status card */}
-                {app.verification_attempts > 0 && (
-                  <div style={{ background: app.reverification_requested ? "#fef9c3" : app.verification_passed ? "linear-gradient(135deg,#f0fdf4,#dcfce7)" : app.needs_manual_review ? "#fff7ed" : "#f8fafc", border: `1.5px solid ${app.reverification_requested ? "#fde68a" : app.verification_passed ? "#86efac" : app.needs_manual_review ? "#fed7aa" : "#e2e8f0"}`, borderRadius: "14px", padding: "16px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: app.reverification_requested ? "#fef3c7" : app.verification_passed ? "#dcfce7" : "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <ShieldIcon size={18} stroke={app.reverification_requested ? "#d97706" : app.verification_passed ? "#16a34a" : "#dc2626"} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: "14px", fontWeight: "800", color: app.reverification_requested ? "#92400e" : app.verification_passed ? "#15803d" : "#991b1b", margin: "0 0 3px" }}>
-                          {app.reverification_requested
-                            ? "Re-verification Required"
-                            : app.verification_passed
-                            ? "Identity Verified"
-                            : "Identity Pending Manual Review"}
-                        </p>
-                        <p style={{ fontSize: "12px", color: app.reverification_requested ? "#a16207" : app.verification_passed ? "#16a34a" : "#b45309", margin: 0, lineHeight: 1.5 }}>
-                          {app.reverification_requested
-                            ? "An officer has asked you to redo your identity verification. Click below to complete it."
-                            : app.verification_passed
-                            ? `Verified on ${new Date(app.verified_at.endsWith("Z") ? app.verified_at : app.verified_at + "Z").toLocaleDateString("en-JM", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Jamaica" })}.`
-                            : `Verification was not completed automatically. A licensing officer will review your identity.`}
-                        </p>
-                      </div>
+                {/* Verification status card — hide when reverification is pending (shown in action card below) */}
+                {app.verification_attempts > 0 && !app.reverification_requested && (
+                  <div style={{ background: app.verification_passed ? "linear-gradient(135deg,#f0fdf4,#dcfce7)" : app.needs_manual_review ? "#fff7ed" : "#f8fafc", border: `1.5px solid ${app.verification_passed ? "#86efac" : app.needs_manual_review ? "#fed7aa" : "#e2e8f0"}`, borderRadius: "14px", padding: "14px 18px", display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{ width: "34px", height: "34px", borderRadius: "10px", background: app.verification_passed ? "#dcfce7" : "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <ShieldIcon size={17} stroke={app.verification_passed ? "#16a34a" : "#dc2626"} />
                     </div>
-                    {app.reverification_requested && (
-                      <button
-                        onClick={() => { update({ applicationId: app.id }); navigate("/apply/verification"); }}
-                        style={{ marginTop: "12px", width: "100%", height: "40px", background: "#d97706", color: "white", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}
-                      >
-                        Start Re-verification
-                      </button>
-                    )}
+                    <div>
+                      <p style={{ fontSize: "13px", fontWeight: "700", color: app.verification_passed ? "#15803d" : "#991b1b", margin: "0 0 2px" }}>
+                        {app.verification_passed ? "Identity Verified" : "Identity Pending Manual Review"}
+                      </p>
+                      <p style={{ fontSize: "12px", color: app.verification_passed ? "#16a34a" : "#b45309", margin: 0, lineHeight: 1.5 }}>
+                        {app.verification_passed
+                          ? `Verified on ${new Date(app.verified_at.endsWith("Z") ? app.verified_at : app.verified_at + "Z").toLocaleDateString("en-JM", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Jamaica" })}.`
+                          : `A licensing officer will review your identity manually.`}
+                      </p>
+                    </div>
                   </div>
                 )}
 
                 {isAR && !submitted && (() => {
                   const resubmitDocs = (app.documents || []).filter(d => d.review_status === "RESUBMIT_REQUIRED");
+                  const hasReverif   = app.reverification_requested;
                   const readyCount   = resubmitDocs.filter(d => docUploads[d.doc_type]).length;
                   const totalCount   = resubmitDocs.length;
                   return (
-                    <div style={{ background: "linear-gradient(135deg, #fff7ed 0%, #fef2f2 100%)", border: "2px solid #fb923c", borderRadius: "16px", overflow: "hidden" }}>
-                      {/* Header strip */}
-                      <div style={{ background: "linear-gradient(90deg, #ea580c, #dc2626)", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <AlertIcon size={16} stroke="white" />
-                          </div>
-                          <div>
-                            <p style={{ fontSize: "14px", fontWeight: "800", color: "white", margin: 0, letterSpacing: "-0.2px" }}>Action Required — Resubmission</p>
-                            <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.75)", margin: 0, marginTop: "2px" }}>An officer has reviewed your application and needs updated documents</p>
-                          </div>
+                    <div style={{ background: "#fffbeb", border: "2px solid #fcd34d", borderRadius: "14px", overflow: "hidden" }}>
+                      {/* Header */}
+                      <div style={{ padding: "14px 18px", borderBottom: "1px solid #fde68a", display: "flex", alignItems: "center", gap: "10px" }}>
+                        <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#fef3c7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <AlertIcon size={16} stroke="#d97706" />
                         </div>
-                        {totalCount > 0 && (
-                          <div style={{ flexShrink: 0, background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.35)", borderRadius: "999px", padding: "4px 12px", textAlign: "center" }}>
-                            <p style={{ fontSize: "12px", fontWeight: "800", color: "white", margin: 0 }}>{readyCount}/{totalCount}</p>
-                            <p style={{ fontSize: "9px", color: "rgba(255,255,255,0.75)", margin: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>ready</p>
-                          </div>
-                        )}
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: "14px", fontWeight: "800", color: "#92400e", margin: 0 }}>Action Required</p>
+                          <p style={{ fontSize: "12px", color: "#a16207", margin: 0, marginTop: "2px" }}>
+                            {hasReverif && totalCount > 0 ? "Complete the tasks below before your application can proceed"
+                              : hasReverif ? "Redo your live identity verification"
+                              : "Upload the documents flagged by the officer"}
+                          </p>
+                        </div>
                       </div>
 
-                      <div style={{ padding: "18px 20px" }}>
+                      <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: "12px" }}>
                         {/* Officer message */}
                         {app.officer_comment && (
-                          <div style={{ background: "white", border: "1px solid #fed7aa", borderRadius: "10px", padding: "12px 14px", marginBottom: "16px", display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                            <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "#fff7ed", border: "1px solid #fed7aa", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "1px" }}>
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                            </div>
-                            <div style={{ flex: 1 }}>
-                              <p style={{ fontSize: "11px", fontWeight: "700", color: "#9a3412", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Officer&apos;s message</p>
-                              <p style={{ fontSize: "13px", color: "#7c2d12", lineHeight: 1.6, margin: 0, fontStyle: "italic" }}>&ldquo;{app.officer_comment}&rdquo;</p>
-                            </div>
+                          <div style={{ background: "white", border: "1px solid #fde68a", borderRadius: "10px", padding: "11px 14px", display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                            <p style={{ fontSize: "12px", color: "#78350f", lineHeight: 1.6, margin: 0, fontStyle: "italic" }}>&ldquo;{app.officer_comment}&rdquo;</p>
                           </div>
                         )}
 
-                        {/* What to do steps */}
-                        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-                          {[
-                            { n: "1", text: "Review each document the officer flagged below" },
-                            { n: "2", text: "Upload a clear, updated version of each file" },
-                            { n: "3", text: "Click Submit to send your response" },
-                          ].map(step => (
-                            <div key={step.n} style={{ flex: 1, background: "white", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "10px 12px", textAlign: "center" }}>
-                              <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#ea580c", color: "white", fontSize: "11px", fontWeight: "800", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 6px" }}>{step.n}</div>
-                              <p style={{ fontSize: "11px", color: "#374151", lineHeight: 1.5, margin: 0 }}>{step.text}</p>
+                        {/* Re-verification task */}
+                        {hasReverif && (
+                          <div style={{ background: "white", border: "1.5px solid #fcd34d", borderRadius: "10px", padding: "13px 15px", display: "flex", alignItems: "center", gap: "12px" }}>
+                            <div style={{ width: "34px", height: "34px", borderRadius: "9px", background: "#fef3c7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              <ShieldIcon size={17} stroke="#d97706" />
                             </div>
-                          ))}
-                        </div>
-
-                        <button onClick={() => actionRef.current?.scrollIntoView({ behavior: "smooth" })} style={{ width: "100%", height: "40px", borderRadius: "8px", border: "none", background: "#ea580c", color: "white", fontSize: "13px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px" }}>
-                          <UploadIcon size={13} stroke="white" /> Go to Upload Section ↓
-                        </button>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ fontSize: "13px", fontWeight: "700", color: "#92400e", margin: "0 0 2px" }}>Live Identity Re-verification</p>
+                              <p style={{ fontSize: "12px", color: "#a16207", margin: 0 }}>You have 3 attempts. Takes about 1 minute.</p>
+                            </div>
+                            <button
+                              onClick={() => { update({ applicationId: app.id }); navigate("/apply/verification", { state: { reverification: true, appId: app.id } }); }}
+                              style={{ flexShrink: 0, padding: "8px 16px", background: "#d97706", color: "white", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}
+                            >
+                              Start
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -861,35 +856,34 @@ export default function ViewApplication() {
                   const readyCount   = resubmitDocs.filter(d => docUploads[d.doc_type]).length;
                   const totalCount   = resubmitDocs.length;
                   const allProvided  = totalCount > 0 && readyCount === totalCount;
+                  if (totalCount === 0) return null;
                   return (
-                    <div ref={actionRef} style={{ background: "white", borderRadius: "16px", border: "1.5px solid #e2e8f0", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", overflow: "hidden" }}>
+                    <div ref={actionRef} style={{ background: "white", borderRadius: "14px", border: "1.5px solid #e2e8f0", overflow: "hidden" }}>
                       {/* Card header */}
-                      <div style={{ padding: "16px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                      <div style={{ padding: "14px 18px", borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <UploadIcon size={17} stroke="#ea580c" />
+                          <div style={{ width: "34px", height: "34px", borderRadius: "9px", background: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <UploadIcon size={16} stroke="#ea580c" />
                           </div>
                           <div>
-                            <p style={{ fontSize: "14px", fontWeight: "800", color: "#111827", margin: 0 }}>Upload Requested Documents</p>
-                            <p style={{ fontSize: "12px", color: "#9ca3af", margin: 0, marginTop: "2px" }}>Replace only the documents flagged by the officer</p>
+                            <p style={{ fontSize: "13px", fontWeight: "700", color: "#111827", margin: 0 }}>Upload Flagged Documents</p>
+                            <p style={{ fontSize: "12px", color: "#9ca3af", margin: 0, marginTop: "1px" }}>{readyCount} of {totalCount} ready</p>
                           </div>
                         </div>
-                        {totalCount > 0 && (
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px", background: allProvided ? "#f0fdf4" : "#fff7ed", border: `1px solid ${allProvided ? "#86efac" : "#fed7aa"}`, borderRadius: "999px", padding: "5px 12px", flexShrink: 0 }}>
-                            <div style={{ width: "7px", height: "7px", borderRadius: "50%", background: allProvided ? "#22c55e" : "#f59e0b" }} />
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: allProvided ? "#15803d" : "#92400e" }}>{readyCount} of {totalCount} ready</span>
-                          </div>
-                        )}
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", background: allProvided ? "#f0fdf4" : "#fff7ed", border: `1px solid ${allProvided ? "#86efac" : "#fed7aa"}`, borderRadius: "999px", padding: "4px 12px", flexShrink: 0 }}>
+                          <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: allProvided ? "#22c55e" : "#f59e0b" }} />
+                          <span style={{ fontSize: "12px", fontWeight: "700", color: allProvided ? "#15803d" : "#92400e" }}>{allProvided ? "All ready" : `${totalCount - readyCount} remaining`}</span>
+                        </div>
                       </div>
 
-                      <div style={{ padding: "20px" }}>
+                      <div style={{ padding: "16px 18px" }}>
                         {resubmitDocs.length === 0 ? (
-                          <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "12px", padding: "14px 16px", display: "flex", gap: "10px" }}>
-                            <AlertIcon size={16} stroke="#d97706" />
-                            <p style={{ fontSize: "13px", color: "#92400e", margin: 0, lineHeight: 1.6 }}>{app.officer_comment || "The officer has requested additional information. Please contact your nearest TAJ office."}</p>
+                          <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "10px", padding: "12px 14px", display: "flex", gap: "10px" }}>
+                            <AlertIcon size={15} stroke="#d97706" />
+                            <p style={{ fontSize: "12px", color: "#92400e", margin: 0, lineHeight: 1.6 }}>{app.officer_comment || "The officer has requested additional information. Please contact your nearest TAJ office."}</p>
                           </div>
                         ) : (
-                          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "18px" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "14px" }}>
                             {resubmitDocs.map((doc, idx) => {
                               const picked      = docUploads[doc.doc_type];
                               const fileInputId = `resubmit-${doc.doc_type}`;
@@ -981,27 +975,14 @@ export default function ViewApplication() {
                           </div>
                         )}
 
-                        {/* Progress bar */}
-                        {totalCount > 0 && (
-                          <div style={{ marginBottom: "16px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                              <p style={{ fontSize: "11px", color: "#6b7280", margin: 0 }}>Upload progress</p>
-                              <p style={{ fontSize: "11px", fontWeight: "700", color: allProvided ? "#15803d" : "#374151", margin: 0 }}>{readyCount}/{totalCount} documents ready</p>
-                            </div>
-                            <div style={{ height: "6px", borderRadius: "999px", background: "#f1f5f9", overflow: "hidden" }}>
-                              <div style={{ height: "100%", borderRadius: "999px", background: allProvided ? "#22c55e" : "#f59e0b", width: `${totalCount > 0 ? (readyCount / totalCount) * 100 : 0}%`, transition: "width 0.4s ease" }} />
-                            </div>
-                          </div>
-                        )}
-
                         {/* Note to officer */}
-                        <div style={{ marginBottom: "16px" }}>
-                          <label style={{ fontSize: "12px", fontWeight: "700", color: "#374151", display: "block", marginBottom: "6px" }}>
-                            Note to Officer <span style={{ fontWeight: "400", color: "#9ca3af" }}>(optional)</span>
+                        <div style={{ marginBottom: "12px" }}>
+                          <label style={{ fontSize: "12px", fontWeight: "600", color: "#6b7280", display: "block", marginBottom: "5px" }}>
+                            Note to officer <span style={{ fontWeight: "400" }}>(optional)</span>
                           </label>
                           <textarea value={note} onChange={(e) => setNote(e.target.value)}
-                            placeholder="Let the officer know anything helpful about the updated documents…" rows={3}
-                            style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: "10px", padding: "10px 14px", fontSize: "13px", resize: "none", fontFamily: "inherit", outline: "none", boxSizing: "border-box", color: "#374151" }}
+                            placeholder="Add any context about your updated documents…" rows={2}
+                            style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: "8px", padding: "9px 12px", fontSize: "12px", resize: "none", fontFamily: "inherit", outline: "none", boxSizing: "border-box", color: "#374151" }}
                             onFocus={e => e.target.style.borderColor = "#ea580c"}
                             onBlur={e => e.target.style.borderColor = "#e2e8f0"}
                           />
@@ -1010,20 +991,15 @@ export default function ViewApplication() {
                         {submitError && <div style={{ marginBottom: "12px" }}><InfoBanner type="error" message={submitError} /></div>}
 
                         <button onClick={handleResubmit} disabled={submitting || !allProvided}
-                          style={{ width: "100%", height: "50px", borderRadius: "10px", border: "none", background: submitting ? "#9ca3af" : allProvided ? "linear-gradient(90deg, #ea580c, #dc2626)" : "#e2e8f0", color: allProvided || submitting ? "white" : "#9ca3af", fontSize: "14px", fontWeight: "800", cursor: submitting || !allProvided ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "9px", letterSpacing: "-0.1px", transition: "opacity 0.15s" }}>
+                          style={{ width: "100%", height: "44px", borderRadius: "10px", border: "none", background: submitting ? "#9ca3af" : allProvided ? "#ea580c" : "#e2e8f0", color: allProvided || submitting ? "white" : "#9ca3af", fontSize: "13px", fontWeight: "700", cursor: submitting || !allProvided ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
                           {submitting ? (
-                            <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 11-6.219-8.56" /></svg>Submitting…</>
+                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 11-6.219-8.56" /></svg>Submitting…</>
                           ) : allProvided ? (
-                            <><SendIcon size={15} stroke="white" /> Send Response to Officer</>
+                            <><SendIcon size={14} stroke="white" /> Submit Documents</>
                           ) : (
-                            `Upload all ${totalCount} document${totalCount !== 1 ? "s" : ""} to continue`
+                            `Upload ${totalCount - readyCount} more document${totalCount - readyCount !== 1 ? "s" : ""} to continue`
                           )}
                         </button>
-                        {!allProvided && totalCount > 0 && (
-                          <p style={{ fontSize: "11px", color: "#9ca3af", textAlign: "center", margin: "8px 0 0" }}>
-                            {totalCount - readyCount} document{totalCount - readyCount !== 1 ? "s" : ""} still needed
-                          </p>
-                        )}
                       </div>
                     </div>
                   );
@@ -1036,37 +1012,42 @@ export default function ViewApplication() {
                       <div style={{ position: "absolute", left: "17px", top: "18px", bottom: "18px", width: "1px", background: "#e5e7eb" }} />
                       <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                         {app.events && [...app.events].filter(ev => ![
-                          "OFFICER_ASSIGNED", "DOCUMENT_REVIEW", "MANUAL_REVIEW_CLEARED",
-                          "REVERIFICATION_REQUESTED",
+                          "OFFICER_ASSIGNED", "DOCUMENT_REVIEW", "VERIFICATION_ATTEMPT_FAILED", "VERIFICATION_PASSED",
                         ].includes(ev.event_type)).reverse().map((ev, i) => {
                           const evStyle = EVENT_ICONS[ev.event_type] || EVENT_ICONS.STATUS_CHANGE;
                           const EvIcon = evStyle.icon;
+                          const evLabel = ({
+                            CREATED:                   "Application Created",
+                            SUBMITTED:                 "Application Submitted",
+                            PAYMENT_CONFIRMED:         "Payment Confirmed",
+                            REVIEW_STARTED:            "Under Review",
+                            STATUS_CHANGE:             "Status Updated",
+                            ACTION_REQUIRED:           "Action Required",
+                            RESUBMITTED:               "Documents Resubmitted",
+                            ESCALATED:                 "Escalated to Supervisor",
+                            ITA_REQUESTED:             "ITA Clearance Requested",
+                            APPROVED:                  "Application Approved",
+                            REJECTED:                  "Application Rejected",
+                            SUPERVISOR_DECISION:       "Supervisor Decision",
+                            REVERIFICATION_REQUESTED:  "Re-verification Requested",
+                            MANUAL_REVIEW_CLEARED:     "Review Cleared",
+                            VERIFICATION_OVERRIDE:     "Verification Decision Made",
+                            WAITING_ON_APPLICANT:      "Action Required — Documents",
+                            DIGITAL_LICENCE_GENERATED: "Digital Licence Ready",
+                          })[ev.event_type] ?? ev.event_type?.replace(/_/g, " ");
                           return (
-                            <div key={ev.id} style={{ display: "flex", gap: "14px", alignItems: "flex-start" }}>
+                            <div key={ev.id || i} style={{ display: "flex", gap: "14px", alignItems: "flex-start" }}>
                               <div style={{ width: "34px", height: "34px", borderRadius: "10px", flexShrink: 0, zIndex: 1, background: evStyle.bg, border: `1px solid ${evStyle.color}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                                 <EvIcon size={15} stroke={evStyle.color} />
                               </div>
                               <div style={{ flex: 1, padding: "10px 14px", borderRadius: "10px", background: i === 0 ? "#f8faff" : "#fafafa", border: `1px solid ${i === 0 ? "#dbeafe" : "#f3f4f6"}` }}>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
-                                  <p style={{ fontSize: "13px", fontWeight: "700", color: "#111827", margin: 0 }}>{({
-                                    CREATED:             "Application Created",
-                                    SUBMITTED:           "Application Submitted",
-                                    PAYMENT_CONFIRMED:   "Payment Confirmed",
-                                    REVIEW_STARTED:      "Under Review",
-                                    STATUS_CHANGE:       "Status Updated",
-                                    ACTION_REQUIRED:     "Action Required",
-                                    RESUBMITTED:         "Documents Resubmitted",
-                                    ESCALATED:           "Escalated to Supervisor",
-                                    ITA_REQUESTED:       "ITA Clearance Requested",
-                                    APPROVED:            "Application Approved",
-                                    REJECTED:            "Application Rejected",
-                                    SUPERVISOR_DECISION: "Supervisor Decision",
-                                  })[ev.event_type] ?? ev.event_type?.replace(/_/g, " ")}</p>
+                                  <p style={{ fontSize: "13px", fontWeight: "700", color: "#111827", margin: 0 }}>{evLabel}</p>
                                   <span style={{ fontSize: "11px", color: "#9ca3af", whiteSpace: "nowrap", flexShrink: 0 }}>{fmtTime(ev.created_at)}</span>
                                 </div>
-                                {ev.triggered_by && (
+                                {ev.actor && ev.actor !== "System" && (
                                   <p style={{ fontSize: "11px", color: "#6b7280", margin: "4px 0 0", fontWeight: 500 }}>
-                                    by <strong style={{ color: "#374151" }}>{ev.triggered_by}</strong>
+                                    by <strong style={{ color: "#374151" }}>{ev.actor}</strong>
                                   </p>
                                 )}
                                 {ev.comment && <p style={{ fontSize: "12px", color: "#6b7280", margin: "6px 0 0", padding: "8px 12px", background: "white", borderRadius: "8px", border: "1px solid #f3f4f6", lineHeight: 1.6, fontStyle: "italic" }}>"{ev.comment}"</p>}

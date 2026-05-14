@@ -1,4 +1,4 @@
-// Supervisor review page — read-only view of all application steps plus the supervisor decision panel.
+﻿// Supervisor review page — read-only view of all application steps plus the supervisor decision panel.
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -356,11 +356,14 @@ function StepOverview({ app, applicant, officer, licence }) {
   );
 }
 
-// Step: Applicant (same layout as StepSummary, read-only photo)
-function StepApplicant({ app, applicant, licence }) {
+
+// Step: Applicant
+function StepApplicant({ app, appId, applicant, licence, onAppUpdate, supervisorName, readOnly }) {
   const photoDoc = (app?.documents || []).find(d => d.doc_type === "licence_photo" && d.is_current);
-  const [photoBlobUrl, setPhotoBlobUrl] = useState(null);
-  const [expanded, setExpanded] = useState(false);
+  const [photoBlobUrl,    setPhotoBlobUrl]    = useState(null);
+  const [expanded,        setExpanded]        = useState(false);
+  const [reviewingPhoto,  setReviewingPhoto]  = useState(false);
+  const [localPhotoReview, setLocalPhotoReview] = useState(null);
 
   useEffect(() => {
     if (!photoDoc) return;
@@ -371,31 +374,59 @@ function StepApplicant({ app, applicant, licence }) {
     return () => { if (url) URL.revokeObjectURL(url); };
   }, [app?.id, photoDoc?.id]);
 
+  const photoStatus  = localPhotoReview?.status  ?? photoDoc?.review_status;
+  const photoComment = localPhotoReview?.comment ?? photoDoc?.review_comment;
+  const photoMeta    = photoStatus ? DOC_STATUS_META[photoStatus] : null;
+
   return (
     <div className={pStyles.stepContent}>
+      {reviewingPhoto && photoDoc && (
+        <SupDocReviewModal
+          title="Review: Submitted Photo"
+          subtitle="Supervisor decision — overrides officer"
+          officerStatus={photoDoc.review_status}
+          officerComment={photoDoc.review_comment}
+          currentStatus={localPhotoReview?.status || photoDoc.review_status || ""}
+          currentComment={localPhotoReview?.comment || photoDoc.review_comment || ""}
+          appId={appId}
+          docId={photoDoc.id}
+          onDone={(s, c) => { setLocalPhotoReview({ status: s, comment: c }); onAppUpdate?.(); }}
+          onClose={() => setReviewingPhoto(false)}
+        />
+      )}
       <div className={pStyles.sectionHead}>
         <UserIcon size={18} stroke="#2563eb" />
         <h2 className={pStyles.sectionTitle}>Applicant Summary</h2>
       </div>
 
-      {/* Photo + Declaration */}
       <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 0, borderBottom: "1px solid #f3f4f6" }}>
-        {/* Photo */}
         <div style={{ padding: "20px", borderRight: "1px solid #f3f4f6", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, background: "#fafbff" }}>
           <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em", alignSelf: "flex-start" }}>Submitted Photo</p>
           {photoBlobUrl ? (
-            <>
-              <div style={{ position: "relative", cursor: "zoom-in" }} onClick={() => setExpanded(true)}>
-                <img src={photoBlobUrl} alt="Applicant photo"
-                  style={{ width: 110, height: 145, objectFit: "cover", borderRadius: 10, border: "2px solid #e2e8f0", display: "block" }}
-                  onError={e => e.target.style.display = "none"} />
-              </div>
-            </>
+            <div style={{ position: "relative", cursor: "zoom-in" }} onClick={() => setExpanded(true)}>
+              <img src={photoBlobUrl} alt="Applicant photo"
+                style={{ width: 110, height: 145, objectFit: "cover", borderRadius: 10, border: `2px solid ${photoMeta ? photoMeta.color + "60" : "#e2e8f0"}`, display: "block" }}
+                onError={e => e.target.style.display = "none"} />
+            </div>
           ) : (
             <div style={{ background: "#f8fafc", border: "2px dashed #e2e8f0", borderRadius: 10, padding: "28px 20px", textAlign: "center", width: "100%" }}>
               <CameraIcon size={24} stroke="#d1d5db" />
               <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>No photo</p>
             </div>
+          )}
+          {photoMeta && (
+            <span style={{ fontSize: 10, fontWeight: 700, color: photoMeta.color, background: photoMeta.bg, border: `1px solid ${photoMeta.color}30`, borderRadius: 6, padding: "2px 8px" }}>
+              {photoMeta.label}
+            </span>
+          )}
+          {photoComment && (
+            <p style={{ fontSize: 10, color: "#6b7280", fontStyle: "italic", textAlign: "center", lineHeight: 1.4, margin: 0 }}>"{photoComment}"</p>
+          )}
+          {photoDoc && !readOnly && (
+            <button onClick={() => setReviewingPhoto(true)}
+              style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", border: "1.5px solid #ddd6fe", borderRadius: 7, padding: "5px 10px", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
+              <PenIcon size={11} stroke="#7c3aed" /> Override Decision
+            </button>
           )}
           <p style={{ fontSize: 10, color: "#9ca3af", textAlign: "center", lineHeight: 1.4 }}>Cross-check against identity documents</p>
         </div>
@@ -404,8 +435,6 @@ function StepApplicant({ app, applicant, licence }) {
             <img src={photoBlobUrl} alt="Applicant photo" style={{ maxHeight: "90vh", maxWidth: "90vw", borderRadius: 12, border: "3px solid white", objectFit: "contain" }} />
           </div>
         )}
-
-        {/* Declaration */}
         <div style={{ padding: "20px 24px", background: "#fafbff" }}>
           <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 14 }}>Signed Declaration</p>
           {app?.declaration ? (
@@ -434,7 +463,6 @@ function StepApplicant({ app, applicant, licence }) {
         </div>
       </div>
 
-      {/* Data grid */}
       <div className={pStyles.twoCol}>
         <div className={pStyles.infoBlock}>
           <p className={pStyles.infoBlockTitle}>Personal Information</p>
@@ -454,7 +482,6 @@ function StepApplicant({ app, applicant, licence }) {
             <EmailPopup email={applicant?.email || "—"} />
           </div>
         </div>
-
         <div className={pStyles.infoBlock}>
           <p className={pStyles.infoBlockTitle}>Address</p>
           {[
@@ -477,18 +504,17 @@ function StepApplicant({ app, applicant, licence }) {
             </div>
           )}
         </div>
-
         <div className={pStyles.infoBlock}>
           <p className={pStyles.infoBlockTitle}>Licence Record</p>
           {[
-            ["Current Control No.", licence?.control_number || "—"],
-            ["TRN",           licence?.trn || "—"],
-            ["Class",         licence?.licence_class || "—"],
-            ["Status",        licence?.status || "—"],
-            ["First Issued",  fmt(licence?.first_issue_date)],
-            ["Last Issued",   fmt(licence?.issue_date)],
-            ["Expiry Date",   fmt(licence?.expiry_date)],
-            ["Collectorate",  licence?.collectorate || "—"],
+            ["Control No.", licence?.control_number || "—"],
+            ["TRN",         licence?.trn || "—"],
+            ["Class",       licence?.licence_class || "—"],
+            ["Status",      licence?.status || "—"],
+            ["First Issued",fmt(licence?.first_issue_date)],
+            ["Last Issued", fmt(licence?.issue_date)],
+            ["Expiry Date", fmt(licence?.expiry_date)],
+            ["Collectorate",licence?.collectorate || "—"],
           ].map(([l, v]) => (
             <div key={l} className={pStyles.infoRow}>
               <span className={pStyles.infoLabel}>{l}</span>
@@ -496,7 +522,6 @@ function StepApplicant({ app, applicant, licence }) {
             </div>
           ))}
         </div>
-
         <div className={pStyles.infoBlock}>
           <p className={pStyles.infoBlockTitle}>Application Details</p>
           {[
@@ -526,116 +551,766 @@ function StepApplicant({ app, applicant, licence }) {
   );
 }
 
-// Step: Documents (view-only, officer decisions shown)
-function StepDocuments({ app, appId, onPreview }) {
-  const docs = (app?.documents || []).filter(d => d.is_current && d.doc_type !== "licence_photo" && d.doc_type !== "verification_photo");
+// Score bar — replicates the officer portal's ScoreBar
+function ScoreBar({ label, value, threshold = 50 }) {
+  const pct  = Math.min(Math.max(value ?? 0, 0), 100);
+  const good = pct >= threshold;
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+        <span style={{ fontSize: 11, color: "#6b7280" }}>{label}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: good ? "#15803d" : "#dc2626" }}>{pct}%</span>
+      </div>
+      <div style={{ height: 6, background: "#f1f5f9", borderRadius: 999, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: good ? "#22c55e" : "#ef4444", borderRadius: 999, transition: "width 0.4s ease" }} />
+      </div>
+    </div>
+  );
+}
 
-  const DOC_LABELS = {
-    national_id_front:      "National ID / Passport (Front)",
-    national_id_back:       "National ID / Passport (Back)",
-    existing_licence_front: "Current Driver's Licence (Front)",
-    existing_licence_back:  "Current Driver's Licence (Back)",
-    verification_photo:     "Live Verification Photo",
-    licence_photo:          "Licence Photo",
-    police_report:          "Police Report",
-    proof_of_address:       "Proof of Address",
-    trustee_letter:         "Trustee Letter",
+// Verification history (collapsible)
+function VerifHistory({ events }) {
+  const [open, setOpen] = useState(false);
+  if (!events.length) return null;
+  return (
+    <div style={{ margin: "0 18px 14px", border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
+      <button onClick={() => setOpen(v => !v)}
+        style={{ width: "100%", padding: "10px 14px", background: "#f8fafc", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", fontFamily: "inherit" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <ClockIcon size={13} stroke="#6b7280" />
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em" }}>Verification History</span>
+          <span style={{ fontSize: 11, color: "#9ca3af" }}>({events.length})</span>
+        </div>
+        <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth={2.5} strokeLinecap="round">
+          <path d={open ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} />
+        </svg>
+      </button>
+      {open && (
+        <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8, background: "white" }}>
+          {events.map((ev, i) => (
+            <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <div style={{ width: 22, height: 22, borderRadius: 6, background: "#e0e7ff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                <ClockIcon size={11} stroke="#4338ca" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: "#374151", margin: 0 }}>{ev.event_type?.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</p>
+                {ev.comment && <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0", fontStyle: "italic" }}>"{ev.comment}"</p>}
+              </div>
+              <p style={{ fontSize: 10, color: "#9ca3af", flexShrink: 0, marginTop: 2 }}>{fmtTime(ev.created_at)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Identity Verification Panel — full detail + supervisor override actions
+function VerificationPanel({ app: initialApp, appId, onAppUpdate, supervisorName, readOnly }) {
+  const [liveApp,        setLiveApp]        = useState(initialApp);
+  const [photoExpanded,  setPhotoExpanded]  = useState(false);
+  const [photoBlobUrl,   setPhotoBlobUrl]   = useState(null);
+  const [clearing,       setClearing]       = useState(false);
+  const [reverifying,    setReverifying]    = useState(false);
+  const [decisionOpen,   setDecisionOpen]   = useState(null); // "pass" | "fail" | "reverify" | "clear-manual" | null
+  const [decisionReason, setDecisionReason] = useState("");
+  const [deciding,       setDeciding]       = useState(false);
+  const [decisionErr,    setDecisionErr]    = useState("");
+  const [sig,            setSig]            = useState(null);
+  const [showSigPad,     setShowSigPad]     = useState(false);
+  const [loadingSig,     setLoadingSig]     = useState(false);
+  const [confirmed,      setConfirmed]      = useState(false);
+  const [confirmedAt,    setConfirmedAt]    = useState(null);
+
+  useEffect(() => { setLiveApp(initialApp); }, [initialApp]);
+
+  useEffect(() => {
+    if (!decisionOpen || sig) return;
+    setLoadingSig(true);
+    api.get("/api/supervisor/profile/signature")
+      .then(r => { if (r.data.signature_image) setSig(r.data.signature_image); })
+      .catch(() => {})
+      .finally(() => setLoadingSig(false));
+  }, [decisionOpen]);
+
+  const app       = liveApp;
+  const verifyDoc = (app?.documents || []).find(d => d.is_current && d.doc_type === "verification_photo");
+  const vr        = app?.verification_result;
+
+  useEffect(() => {
+    if (!verifyDoc) return;
+    let url;
+    api.get(`/api/supervisor/applications/${appId}/documents/${verifyDoc.id}/file`, { responseType: "blob" })
+      .then(res => { url = URL.createObjectURL(res.data); setPhotoBlobUrl(url); })
+      .catch(() => {});
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [appId, verifyDoc?.id]);
+
+  if (!app?.verification_attempts && !vr && app?.liveness_score == null && app?.face_match_score == null) return null;
+
+  const passed   = app.verification_passed;
+  const manual   = app.needs_manual_review;
+  const reverify = app.reverification_requested;
+
+  const autoPass    = passed && !manual && !reverify;
+  const statusLabel = reverify ? "Re-verification Requested" : manual ? "Manual Review Required" : autoPass ? "Passed" : "Failed";
+  const statusColor = autoPass ? "#15803d" : manual ? "#92400e" : reverify ? "#a16207" : "#991b1b";
+  const statusBg    = autoPass ? "#dcfce7"  : manual ? "#fef9c3"  : reverify ? "#fef9c3"  : "#fee2e2";
+  const headerBg    = autoPass ? "linear-gradient(135deg,#f0fdf4,#dcfce7)" : manual ? "linear-gradient(135deg,#fffbeb,#fef9c3)" : reverify ? "linear-gradient(135deg,#fffbeb,#fef9c3)" : "linear-gradient(135deg,#fef2f2,#fee2e2)";
+  const borderColor = autoPass ? "#86efac" : manual ? "#fde68a" : "#fca5a5";
+
+  // Parse sub-scores from verification event comment (same format as officer portal)
+  const verifEvent  = (app.events || []).slice().reverse().find(e =>
+    e.event_type === "VERIFICATION_PASSED" || e.event_type === "VERIFICATION_ATTEMPT_FAILED"
+  );
+  const evComment   = verifEvent?.comment || "";
+  const extract     = key => { const m = evComment.match(new RegExp(`${key}:\\s*(\\d+)`)); return m ? parseInt(m[1], 10) : null; };
+  const extractFrac = key => { const m = evComment.match(new RegExp(`${key}:\\s*(\\d+)/(\\d+)`)); return m ? Math.round(parseInt(m[1],10)/parseInt(m[2],10)*100) : null; };
+  const chalScore   = extractFrac("Challenges");
+  const depthScore  = extract("Face depth");
+  const texScore    = extract("Texture");
+  const indepScore  = extract("Eye independence");
+  const rppgBpm     = extract("BPM");
+  const sharpness   = extract("Sharpness");
+  const usedMatch   = evComment.match(/Used:\s*([a-z_+]+)/i);
+  const chalLabels  = usedMatch ? usedMatch[1].split("+").map(c => c.replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase())).join(", ") : null;
+  const sharpLabel  = sharpness == null ? null : sharpness > 300 ? "High" : sharpness > 80 ? "Medium" : "Low";
+  const sharpColor  = sharpLabel === "High" ? "#15803d" : sharpLabel === "Medium" ? "#d97706" : "#dc2626";
+  const sharpBg     = sharpLabel === "High" ? "#dcfce7" : sharpLabel === "Medium" ? "#fef9c3" : "#fee2e2";
+
+  const verifyEvents = (app.events || [])
+    .filter(e => ["SUBMITTED","RESUBMITTED","REVERIFICATION_REQUESTED","MANUAL_REVIEW_CLEARED","VERIFICATION_PASSED","VERIFICATION_ATTEMPT_FAILED"].includes(e.event_type))
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  const closeDecisionModal = () => {
+    setDecisionOpen(null); setDecisionReason(""); setDecisionErr("");
+    setConfirmed(false); setConfirmedAt(null); setShowSigPad(false);
+  };
+
+  const handleDecision = async () => {
+    if (!confirmed) return;
+    setDeciding(true); setDecisionErr("");
+    try {
+      if (decisionOpen === "pass" || decisionOpen === "fail") {
+        await api.post(`/api/supervisor/applications/${appId}/override-verification`, { result: decisionOpen, reason: decisionReason });
+        setLiveApp(prev => ({ ...prev, verification_passed: decisionOpen === "pass", needs_manual_review: false, manual_review_reason: null }));
+      } else if (decisionOpen === "reverify") {
+        await api.post(`/api/supervisor/applications/${appId}/request-reverification`);
+        setLiveApp(prev => ({ ...prev, reverification_requested: true, needs_manual_review: true }));
+      } else if (decisionOpen === "clear-manual") {
+        await api.post(`/api/supervisor/applications/${appId}/clear-manual-review`);
+        setLiveApp(prev => ({ ...prev, needs_manual_review: false, manual_review_reason: null }));
+      }
+      closeDecisionModal();
+      onAppUpdate?.();
+    } catch (e) {
+      console.error("handleDecision error:", e.response?.status, e.response?.data, e.message);
+      setDecisionErr(e.response?.data?.error || e.response?.data?.message || e.message || "Request failed — check your connection and try again.");
+    }
+    setDeciding(false);
   };
 
   return (
-    <div className={pStyles.stepContent}>
-      <div className={pStyles.sectionHead}>
-        <FileIcon size={18} stroke="#2563eb" />
-        <h2 className={pStyles.sectionTitle}>Submitted Documents</h2>
-        <span className={pStyles.sectionNote}>{docs.length} document{docs.length !== 1 ? "s" : ""}</span>
+    <div style={{ border: `1.5px solid ${borderColor}`, borderRadius: 12, overflow: "hidden", background: "white" }}>
+
+      {/* Header */}
+      <div style={{ padding: "14px 18px", background: headerBg, borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 9, background: autoPass ? "#dcfce7" : manual ? "#fef9c3" : "#fecaca", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <ShieldIcon size={17} stroke={statusColor} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 13, fontWeight: 800, color: "#111827", margin: "0 0 2px" }}>Live Identity Verification</p>
+          <p style={{ fontSize: 11, color: "#6b7280", margin: 0 }}>
+            {app.verification_attempts ?? 0} attempt{(app.verification_attempts ?? 0) !== 1 ? "s" : ""}
+            {app.verified_at ? ` · completed ${fmtTime(app.verified_at)}` : ""}
+          </p>
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: statusBg, color: statusColor, flexShrink: 0 }}>
+          {statusLabel}
+        </span>
       </div>
 
-      {docs.length === 0 ? (
-        <div style={{ padding: "50px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, color: "#9ca3af", fontSize: 13 }}>
-          <FileIcon size={36} stroke="#d1d5db" />
-          No documents uploaded
-        </div>
-      ) : (
-        <div className={pStyles.docGrid}>
-          {docs.map(doc => {
-            const meta = doc.review_status ? DOC_STATUS_META[doc.review_status] : null;
-            return (
-              <div key={doc.id} className={`${pStyles.docCard} ${doc.review_status === "APPROVED" ? pStyles.docCardApproved : doc.review_status === "RESUBMIT_REQUIRED" ? pStyles.docCardResubmit : doc.review_status === "REJECTED" ? pStyles.docCardRejected : ""}`}>
-                <div className={pStyles.docCardHeader}>
-                  <div>
-                    <p className={pStyles.docCardType}>{DOC_LABELS[doc.doc_type] || doc.doc_type?.replace(/_/g, " ")}</p>
-                    <p className={pStyles.docCardSub}>{doc.original_filename || "—"}</p>
-                  </div>
-                  {meta && <span className={pStyles.docCardBadge} style={{ background: meta.bg, color: meta.color }}>{meta.label}</span>}
-                </div>
-                <div className={pStyles.docCardBody}>
-                  {doc.review_comment && <p style={{ fontSize: 11, color: "#6b7280", fontStyle: "italic", marginBottom: 8 }}>"{doc.review_comment}"</p>}
-                  <div className={pStyles.docActions}>
-                    <button className={`${pStyles.docBtn} ${pStyles.docBtnPreview}`} onClick={() => onPreview(doc)}>
-                      <FileIcon size={12} /> View Document
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* Body — photo left, scores right */}
+      <div style={{ padding: "16px 18px", display: "flex", gap: 18 }}>
 
-      {/* Verification scores */}
-      {(app?.face_match_score != null || app?.liveness_score != null) && (
-        <>
-          <div style={{ padding: "14px 22px 6px", borderTop: "1px solid #f3f4f6" }}>
-            <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em" }}>Verification Scores</p>
-          </div>
-          <div className={pStyles.verifyList}>
-            {app.face_match_score != null && (
-              <div className={pStyles.verifyRow}>
-                <ShieldIcon size={18} stroke={app.face_match_score >= 80 ? "#16a34a" : app.face_match_score >= 60 ? "#d97706" : "#dc2626"} />
-                <div className={pStyles.verifyInfo}>
-                  <p className={pStyles.verifyLabel}>Face Match Score</p>
-                  <p className={pStyles.verifyDetail}>Biometric comparison against submitted photo</p>
+        {/* Captured photo */}
+        <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>Captured Frame</p>
+          {photoBlobUrl ? (
+            <>
+              <div style={{ position: "relative", cursor: "zoom-in" }} onClick={() => setPhotoExpanded(true)}>
+                <img src={photoBlobUrl} alt="Verification capture"
+                  style={{ width: 100, height: 130, objectFit: "cover", objectPosition: "top", borderRadius: 8, border: `2px solid ${autoPass ? "#86efac" : "#fca5a5"}`, display: "block" }} />
+                <div style={{ position: "absolute", bottom: 5, right: 5, background: "rgba(0,0,0,0.5)", borderRadius: 5, padding: "2px 5px" }}>
+                  <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 </div>
-                <span className={`${pStyles.verifyBadge} ${app.face_match_score >= 80 ? pStyles.verifyBadgePass : pStyles.verifyBadgeFail}`}>{app.face_match_score}%</span>
               </div>
-            )}
-            {app.liveness_score != null && (
-              <div className={pStyles.verifyRow}>
-                <CameraIcon size={18} stroke={app.liveness_score >= 80 ? "#16a34a" : app.liveness_score >= 60 ? "#d97706" : "#dc2626"} />
-                <div className={pStyles.verifyInfo}>
-                  <p className={pStyles.verifyLabel}>Liveness Score</p>
-                  <p className={pStyles.verifyDetail}>Anti-spoofing detection result</p>
-                </div>
-                <span className={`${pStyles.verifyBadge} ${app.liveness_score >= 80 ? pStyles.verifyBadgePass : pStyles.verifyBadgeFail}`}>{app.liveness_score}%</span>
-              </div>
-            )}
-          </div>
-        </>
-      )}
+              {sharpLabel && (
+                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: sharpBg, color: sharpColor, textAlign: "center" }}>
+                  Sharpness: {sharpLabel}
+                </span>
+              )}
+              <p style={{ fontSize: 9, color: "#9ca3af", margin: 0, textAlign: "center" }}>Click to enlarge</p>
+            </>
+          ) : (
+            <div style={{ width: 100, height: 130, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fafc", borderRadius: 8, border: "1.5px dashed #e2e8f0" }}>
+              <ShieldIcon size={20} stroke="#d1d5db" />
+              <p style={{ fontSize: 9, color: "#9ca3af", margin: "4px 0 0", textAlign: "center" }}>No capture</p>
+            </div>
+          )}
+        </div>
 
-      {/* Activity log */}
-      {(app?.events || []).length > 0 && (
-        <>
-          <div style={{ padding: "14px 22px 6px", borderTop: "1px solid #f3f4f6" }}>
-            <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em" }}>Activity Log</p>
-          </div>
-          <div style={{ padding: "0 22px 18px" }}>
-            {(app.events || []).map((e, i) => (
-              <div key={i} style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: "1px solid #f8fafc" }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: i === 0 ? "#6d28d9" : "#e2e8f0", flexShrink: 0, marginTop: 4 }} />
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>
-                    {e.from_status && e.to_status ? `${e.from_status} → ${e.to_status}` : (e.event_type || "Event")}
-                  </p>
-                  <p style={{ fontSize: 11, color: "#9ca3af" }}>{e.actor || "System"} · {fmtTime(e.created_at)}</p>
-                  {e.comment && <p style={{ fontSize: 11, color: "#6b7280", fontStyle: "italic", marginTop: 2 }}>"{e.comment}"</p>}
-                </div>
+        {/* Score breakdown */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Score Breakdown</p>
+          <ScoreBar label="Liveness Score"      value={app.liveness_score}   threshold={50} />
+          <ScoreBar label="Face Match"          value={app.face_match_score} threshold={40} />
+          {chalScore  != null && <ScoreBar label="Challenge Response" value={chalScore}  threshold={55} />}
+          {depthScore != null && <ScoreBar label="3D Face Depth"      value={depthScore} threshold={55} />}
+          {texScore   != null && <ScoreBar label="Texture (LBP)"      value={texScore}   threshold={55} />}
+          {indepScore != null && <ScoreBar label="Iris Independence"  value={indepScore} threshold={40} />}
+          {chalLabels && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6, marginBottom: 8 }}>
+              <span style={{ fontSize: 11, color: "#6b7280" }}>Challenges used</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", textAlign: "right", maxWidth: "55%" }}>{chalLabels}</span>
+            </div>
+          )}
+          {rppgBpm != null && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: "1px solid #e2e8f0" }}>
+              <span style={{ fontSize: 11, color: "#6b7280" }}>❤️ Est. Heart Rate <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 700 }}>rPPG</span></span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "#15803d" }}>{rppgBpm} <span style={{ fontSize: 10, fontWeight: 500, color: "#6b7280" }}>BPM</span></span>
+            </div>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12, paddingTop: 12, borderTop: "1px solid #f3f4f6" }}>
+            {[
+              ["Attempts",  app.verification_attempts ?? "—"],
+              ["Completed", app.verified_at ? fmtTime(app.verified_at) : "—"],
+              ["Liveness",  app.liveness_score   != null ? `${app.liveness_score}%`   : "—"],
+              ["Face Match",app.face_match_score  != null ? `${app.face_match_score}%` : "—"],
+            ].map(([label, val]) => (
+              <div key={label} style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 10px" }}>
+                <p style={{ fontSize: 10, color: "#9ca3af", margin: "0 0 2px" }}>{label}</p>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#111827", margin: 0 }}>{val}</p>
               </div>
             ))}
           </div>
-        </>
+        </div>
+      </div>
+
+      {/* Manual review callout */}
+      {manual && (
+        <div style={{ margin: "0 18px 14px", padding: "10px 12px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8 }}>
+          <div style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
+            <AlertIcon size={13} stroke="#d97706" />
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: "#92400e", margin: "0 0 2px" }}>Manual Review Flagged</p>
+              {app.manual_review_reason && <p style={{ fontSize: 11, color: "#78350f", margin: 0, lineHeight: 1.5 }}>{app.manual_review_reason}</p>}
+              {reverify && <p style={{ fontSize: 11, color: "#a16207", margin: "4px 0 0", fontStyle: "italic" }}>Re-verification requested — awaiting applicant response.</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Verification quick actions — hidden in read-only (officer possession) mode */}
+      {!readOnly && (
+        <div style={{ margin: "0 18px 16px", display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {manual && (
+            <button onClick={() => { setDecisionOpen("clear-manual"); setDecisionReason(""); setDecisionErr(""); }}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "white", color: "#374151", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              <CheckIcon size={12} sw={2.5} />
+              Clear Manual Review Flag
+            </button>
+          )}
+          {!reverify && (
+            <button onClick={() => { setDecisionOpen("reverify"); setDecisionReason(""); setDecisionErr(""); }}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 8, border: "1.5px solid #fde68a", background: "#fffbeb", color: "#92400e", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              <RotateIcon size={12} stroke="#92400e" />
+              Request Re-verification
+            </button>
+          )}
+          <button onClick={() => { setDecisionOpen("pass"); setDecisionReason(""); setDecisionErr(""); }}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 8, border: "1.5px solid #86efac", background: "#f0fdf4", color: "#15803d", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            <CheckCircle size={12} stroke="#15803d" />
+            Pass Verification
+          </button>
+          <button onClick={() => { setDecisionOpen("fail"); setDecisionReason(""); setDecisionErr(""); }}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 8, border: "1.5px solid #fca5a5", background: "#fef2f2", color: "#dc2626", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            <XCircle size={12} stroke="#dc2626" />
+            Fail Verification
+          </button>
+        </div>
+      )}
+
+      {/* Action modal — pass / fail / reverify / clear-manual */}
+      {decisionOpen && (() => {
+        const META = {
+          "pass":         { title: "Pass Verification",         icon: <CheckCircle size={20} stroke="#16a34a" />, headerBg: "#f0fdf4", headerBorder: "#86efac", label: "Pass",                  color: "#16a34a", reasonRequired: true,  reasonPlaceholder: "Explain why verification is being manually passed…" },
+          "fail":         { title: "Fail Verification",         icon: <XCircle     size={20} stroke="#dc2626" />, headerBg: "#fef2f2", headerBorder: "#fca5a5", label: "Fail",                  color: "#dc2626", reasonRequired: true,  reasonPlaceholder: "Explain why verification is being failed…" },
+          "reverify":     { title: "Request Re-verification",   icon: <RotateIcon  size={20} stroke="#92400e" />, headerBg: "#fffbeb", headerBorder: "#fde68a", label: "Request Re-verification",color: "#d97706", reasonRequired: false, reasonPlaceholder: "Optional note for the audit log…" },
+          "clear-manual": { title: "Clear Manual Review Flag",  icon: <CheckIcon   size={20} stroke="#15803d" sw={2.5} />, headerBg: "#f0fdf4", headerBorder: "#86efac", label: "Clear Flag", color: "#16a34a", reasonRequired: false, reasonPlaceholder: "Optional note for the audit log…" },
+        };
+        const m = META[decisionOpen];
+        return (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+          onClick={e => { if (e.target === e.currentTarget) closeDecisionModal(); }}>
+          <div style={{ background: "white", borderRadius: 16, width: "100%", maxWidth: 480, boxShadow: "0 24px 64px rgba(0,0,0,0.25)", overflow: "hidden" }}>
+
+            {/* Modal header */}
+            <div style={{ padding: "18px 22px", background: m.headerBg, borderBottom: `1.5px solid ${m.headerBorder}`, display: "flex", alignItems: "center", gap: 10 }}>
+              {m.icon}
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 14, fontWeight: 800, color: "#111827", margin: 0 }}>{m.title}</p>
+                <p style={{ fontSize: 11, color: "#6b7280", margin: 0 }}>Supervisor action — recorded in audit log</p>
+              </div>
+              <button onClick={closeDecisionModal} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                <XIcon size={16} stroke="#6b7280" />
+              </button>
+            </div>
+
+            <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
+
+              {/* Reason */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 6 }}>
+                  {m.reasonRequired ? <> Reason <span style={{ color: "#ef4444" }}>*</span> — recorded in audit log</> : "Note (optional) — recorded in audit log"}
+                </label>
+                <textarea value={decisionReason}
+                  onChange={e => { setDecisionReason(e.target.value); setConfirmed(false); setConfirmedAt(null); setDecisionErr(""); }}
+                  placeholder={m.reasonPlaceholder}
+                  rows={3}
+                  style={{ width: "100%", fontSize: 13, border: `1.5px solid ${decisionErr ? "#fca5a5" : "#e2e8f0"}`, borderRadius: 8, padding: "9px 12px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }}
+                />
+                {decisionErr && <p style={{ fontSize: 11, color: "#dc2626", marginTop: 4 }}>{decisionErr}</p>}
+              </div>
+
+              {/* Signature */}
+              <div style={{ background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: "14px 16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <PenIcon size={14} stroke="#374151" />
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#111827", margin: 0 }}>Supervisor Signature &amp; Confirmation</p>
+                </div>
+                {loadingSig ? (
+                  <p style={{ fontSize: 12, color: "#9ca3af" }}>Loading…</p>
+                ) : sig && !showSigPad ? (
+                  <div>
+                    <div style={{ background: "white", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", marginBottom: 10 }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Supervisor Signature</p>
+                      <img src={sig} alt="Supervisor signature" style={{ display: "block", height: 48, objectFit: "contain", objectPosition: "left", maxWidth: "100%" }} />
+                      <button onClick={() => { setShowSigPad(true); setConfirmed(false); setConfirmedAt(null); }}
+                        style={{ fontSize: 10, color: "#6b7280", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit", marginTop: 5, display: "flex", alignItems: "center", gap: 4 }}>
+                        <PenIcon size={10} /> Draw a different signature
+                      </button>
+                    </div>
+                    {!confirmed ? (
+                      <div style={{ background: "white", border: `1.5px solid ${m.color}22`, borderRadius: 8, padding: "12px 14px" }}>
+                        <p style={{ fontSize: 12, color: "#374151", lineHeight: 1.6, marginBottom: 10 }}>
+                          By confirming, I <strong>{supervisorName || "Supervisor"}</strong> certify that the action <strong style={{ color: m.color }}>{m.label}</strong> is accurate and made in accordance with DLRSJAM policy.
+                        </p>
+                        <button
+                          disabled={m.reasonRequired && !decisionReason.trim()}
+                          onClick={() => { setConfirmed(true); setConfirmedAt(new Date().toISOString()); }}
+                          style={{ width: "100%", padding: "9px 0", borderRadius: 7, border: "none", background: (m.reasonRequired && !decisionReason.trim()) ? "#e2e8f0" : m.color, color: (m.reasonRequired && !decisionReason.trim()) ? "#9ca3af" : "white", fontSize: 13, fontWeight: 700, cursor: (m.reasonRequired && !decisionReason.trim()) ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+                          Confirm — {m.label}
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ background: "#f0fdf4", border: "1.5px solid #86efac", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+                        <CheckCircle size={16} stroke="#16a34a" />
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: "#15803d", margin: 0 }}>Decision confirmed</p>
+                          <p style={{ fontSize: 11, color: "#6b7280", margin: 0 }}>{fmtTime(confirmedAt)}</p>
+                        </div>
+                        <button onClick={() => { setConfirmed(false); setConfirmedAt(null); }} style={{ fontSize: 10, color: "#6b7280", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>Undo</button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <SupervisorSigPad
+                    existingSig={sig}
+                    onSave={s => { setSig(s); setShowSigPad(false); setConfirmed(false); setConfirmedAt(null); }}
+                    onUseExisting={() => { setShowSigPad(false); setConfirmed(false); setConfirmedAt(null); }}
+                  />
+                )}
+              </div>
+
+            </div>
+
+            <div style={{ padding: "14px 22px", borderTop: "1px solid #f3f4f6", display: "flex", gap: 8 }}>
+              <button onClick={closeDecisionModal}
+                style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "white", fontSize: 13, fontWeight: 600, color: "#374151", cursor: "pointer", fontFamily: "inherit" }}>
+                Cancel
+              </button>
+              <button disabled={(!confirmed) || (m.reasonRequired && !decisionReason.trim()) || deciding}
+                onClick={handleDecision}
+                style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: (confirmed && (!m.reasonRequired || decisionReason.trim()) && !deciding) ? m.color : "#94a3b8", color: "white", fontSize: 13, fontWeight: 700, cursor: (confirmed && (!m.reasonRequired || decisionReason.trim()) && !deciding) ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                {deciding ? "Submitting…" : `Confirm — ${m.label}`}
+              </button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+function buildDocReviews(documents) {
+  const init = {};
+  const NON_PHOTO = ["licence_photo", "verification_photo"];
+  (documents || []).forEach(function(doc) {
+    if (doc.is_current && !NON_PHOTO.includes(doc.doc_type) && doc.review_status) {
+      init[doc.id] = { status: doc.review_status, comment: doc.review_comment || "" };
+    }
+  });
+  return init;
+}
+
+function ActivityLog({ events }) {
+  const [open, setOpen] = useState(false);
+  if (!events?.length) return null;
+  return (
+    <div style={{ margin: "0 0 4px", border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
+      <button onClick={() => setOpen(v => !v)}
+        style={{ width: "100%", padding: "10px 14px", background: "#f8fafc", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", fontFamily: "inherit" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <ClockIcon size={13} stroke="#6b7280" />
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em" }}>Activity Log</span>
+          <span style={{ fontSize: 11, color: "#9ca3af" }}>({events.length})</span>
+        </div>
+        <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth={2.5} strokeLinecap="round">
+          <path d={open ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} />
+        </svg>
+      </button>
+      {open && (
+        <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8, background: "white" }}>
+          {events.map((e, i) => (
+            <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 0", borderBottom: i < events.length - 1 ? "1px solid #f8fafc" : "none" }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: i === 0 ? "#6d28d9" : "#e2e8f0", flexShrink: 0, marginTop: 5 }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: "#111827", margin: 0 }}>
+                  {EV_LABEL_SUP[e.event_type] || e.event_type?.replace(/_/g, " ") || "Event"}
+                  {e.from_status && e.to_status && <span style={{ fontSize: 10, color: "#9ca3af", fontWeight: 400, marginLeft: 6 }}>{e.from_status.replace(/_/g," ")} → {e.to_status.replace(/_/g," ")}</span>}
+                </p>
+                <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0" }}>{e.actor || "System"} · {fmtTime(e.created_at)}</p>
+                {e.comment && <p style={{ fontSize: 11, color: "#6b7280", fontStyle: "italic", margin: "3px 0 0" }}>"{e.comment}"</p>}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
+  );
+}
+
+function SupDocReviewModal({ title, subtitle, officerStatus, officerComment, currentStatus, currentComment, appId, docId, onDone, onClose }) {
+  const [status,      setStatus]      = useState(currentStatus || "");
+  const [comment,     setComment]     = useState(currentComment || "");
+  const [submitting,  setSubmitting]  = useState(false);
+  const [err,         setErr]         = useState("");
+  const [sig,         setSig]         = useState(null);
+  const [showSigPad,  setShowSigPad]  = useState(false);
+  const [loadingSig,  setLoadingSig]  = useState(true);
+  const [confirmed,   setConfirmed]   = useState(false);
+  const [confirmedAt, setConfirmedAt] = useState(null);
+
+  useEffect(() => {
+    api.get("/api/supervisor/profile/signature")
+      .then(r => { if (r.data.signature_image) setSig(r.data.signature_image); })
+      .catch(() => {})
+      .finally(() => setLoadingSig(false));
+  }, []);
+
+  const officerMeta   = officerStatus ? DOC_STATUS_META[officerStatus] : null;
+  const decisionColor = { APPROVED: "#15803d", RESUBMIT_REQUIRED: "#d97706", REJECTED: "#dc2626" }[status] || "#6d28d9";
+  const decisionLabel = { APPROVED: "Approve", RESUBMIT_REQUIRED: "Resubmit", REJECTED: "Reject" }[status] || "Decision";
+  const commentRequired = status === "RESUBMIT_REQUIRED" || status === "REJECTED";
+  const canConfirm    = !!status && !!sig && (!commentRequired || comment.trim().length > 0);
+  const canSubmit     = canConfirm && confirmed;
+
+  const handleSave = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true); setErr("");
+    try {
+      await api.post(`/api/supervisor/applications/${appId}/documents/${docId}/review`, { status, comment });
+      onDone(status, comment);
+      onClose();
+    } catch (e) {
+      setErr(e.response?.data?.error || "Failed to save.");
+    }
+    setSubmitting(false);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: "white", borderRadius: 14, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "white", zIndex: 1 }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: 0 }}>{title}</p>
+            <p style={{ fontSize: 11, color: "#9ca3af", margin: 0 }}>{subtitle}</p>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><XIcon size={16} stroke="#6b7280" /></button>
+        </div>
+
+        <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+          {officerMeta && (
+            <div style={{ padding: "10px 12px", background: officerMeta.bg, borderRadius: 8, border: `1px solid ${officerMeta.color}30` }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: officerMeta.color, margin: "0 0 2px" }}>Officer decision: {officerMeta.label}</p>
+              {officerComment && <p style={{ fontSize: 11, color: "#6b7280", margin: 0, fontStyle: "italic" }}>"{officerComment}"</p>}
+            </div>
+          )}
+
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Your Decision</p>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[
+                { v: "APPROVED",          label: "Approve",  color: "#15803d", bg: "#f0fdf4", border: "#86efac" },
+                { v: "RESUBMIT_REQUIRED", label: "Resubmit", color: "#92400e", bg: "#fffbeb", border: "#fde68a" },
+                { v: "REJECTED",          label: "Reject",   color: "#991b1b", bg: "#fef2f2", border: "#fca5a5" },
+              ].map(opt => (
+                <button key={opt.v} onClick={() => { setStatus(opt.v); setConfirmed(false); setConfirmedAt(null); }}
+                  style={{ flex: 1, padding: "8px 4px", borderRadius: 8, border: `1.5px solid ${status === opt.v ? opt.border : "#e2e8f0"}`, background: status === opt.v ? opt.bg : "white", color: status === opt.v ? opt.color : "#6b7280", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+              Comment {commentRequired ? <span style={{ color: "#ef4444" }}>*</span> : <span style={{ color: "#9ca3af", fontWeight: 400, textTransform: "none" }}>(optional)</span>}
+            </p>
+            <textarea value={comment} onChange={e => { setComment(e.target.value); setConfirmed(false); setConfirmedAt(null); }} rows={3}
+              placeholder={status === "RESUBMIT_REQUIRED" ? "Explain what needs to be fixed or resubmitted…" : status === "REJECTED" ? "Explain the reason for rejection…" : "Add a note for the record (optional)…"}
+              style={{ width: "100%", fontSize: 12, border: `1.5px solid ${commentRequired && !comment.trim() ? "#fca5a5" : "#e2e8f0"}`, borderRadius: 8, padding: "8px 10px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }} />
+            {commentRequired && !comment.trim() && <p style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>A comment is required for this decision.</p>}
+          </div>
+
+          {/* Signature + Confirm */}
+          {status && (
+            <div style={{ background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <PenIcon size={14} stroke="#374151" />
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#111827", margin: 0 }}>Supervisor Signature &amp; Confirmation</p>
+              </div>
+              {loadingSig ? (
+                <p style={{ fontSize: 12, color: "#9ca3af" }}>Loading…</p>
+              ) : sig && !showSigPad ? (
+                <div>
+                  <div style={{ background: "white", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", marginBottom: 10 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Supervisor Signature</p>
+                    <img src={sig} alt="Supervisor signature" style={{ display: "block", height: 48, objectFit: "contain", objectPosition: "left", maxWidth: "100%" }} />
+                    <button onClick={() => { setShowSigPad(true); setConfirmed(false); setConfirmedAt(null); }}
+                      style={{ fontSize: 10, color: "#6b7280", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit", marginTop: 5, display: "flex", alignItems: "center", gap: 4 }}>
+                      <PenIcon size={10} /> Draw a different signature
+                    </button>
+                  </div>
+                  {!confirmed ? (
+                    <div style={{ background: "white", border: `1.5px solid ${decisionColor}22`, borderRadius: 8, padding: "12px 14px" }}>
+                      <p style={{ fontSize: 12, color: "#374151", lineHeight: 1.6, marginBottom: 10 }}>
+                        By confirming, I certify this <strong style={{ color: decisionColor }}>{decisionLabel}</strong> decision is accurate and in accordance with DLRSJAM policy.
+                      </p>
+                      <button disabled={!canConfirm}
+                        onClick={() => { setConfirmed(true); setConfirmedAt(new Date().toISOString()); }}
+                        style={{ width: "100%", padding: "9px 0", borderRadius: 7, border: "none", background: canConfirm ? decisionColor : "#e2e8f0", color: canConfirm ? "white" : "#9ca3af", fontSize: 13, fontWeight: 700, cursor: canConfirm ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                        Confirm {decisionLabel}
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ background: "#f0fdf4", border: "1.5px solid #86efac", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+                      <CheckCircle size={16} stroke="#16a34a" />
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: "#15803d", margin: 0 }}>Decision confirmed</p>
+                        <p style={{ fontSize: 11, color: "#6b7280", margin: 0 }}>{fmtTime(confirmedAt)}</p>
+                      </div>
+                      <button onClick={() => { setConfirmed(false); setConfirmedAt(null); }} style={{ fontSize: 10, color: "#6b7280", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>Undo</button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <SupervisorSigPad
+                  existingSig={sig}
+                  onSave={s => { setSig(s); setShowSigPad(false); setConfirmed(false); setConfirmedAt(null); }}
+                  onUseExisting={() => { setShowSigPad(false); setConfirmed(false); setConfirmedAt(null); }}
+                />
+              )}
+            </div>
+          )}
+
+          {err && <p style={{ fontSize: 11, color: "#dc2626" }}>{err}</p>}
+        </div>
+
+        <div style={{ padding: "12px 20px", borderTop: "1px solid #f3f4f6", display: "flex", gap: 8, position: "sticky", bottom: 0, background: "white" }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "9px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "white", fontSize: 13, fontWeight: 600, color: "#374151", cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+          <button onClick={handleSave} disabled={!canSubmit || submitting}
+            style={{ flex: 1, padding: "9px", borderRadius: 8, border: "none", background: canSubmit ? decisionColor : "#94a3b8", color: "white", fontSize: 13, fontWeight: 700, cursor: canSubmit ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+            {submitting ? "Saving…" : `Submit — ${decisionLabel}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const SUP_DOC_LABELS = {
+  national_id_front:      "National ID (Front)",
+  national_id_back:       "National ID (Back)",
+  existing_licence_front: "Driver's Licence (Front)",
+  existing_licence_back:  "Driver's Licence (Back)",
+  police_report:          "Police Report",
+  proof_of_address:       "Proof of Address",
+  trustee_letter:         "Authorisation Letter",
+};
+
+// Step: Documents — supporting docs + verification panel
+function StepDocuments({ app, appId, onPreview, onAppUpdate, supervisorName, readOnly }) {
+  const DOC_ORDER = [
+    "trustee_letter",
+    "national_id_front", "national_id_back",
+    "existing_licence_front", "existing_licence_back",
+    "police_report", "proof_of_address",
+  ];
+
+  const GROUP_LABELS = {
+    trustee_letter:    "Authorisation Letter",
+    national_id:       "National ID",
+    existing_licence:  "Driver's Licence",
+  };
+
+  const docs = (app?.documents || [])
+    .filter(d => d.is_current && d.doc_type !== "licence_photo" && d.doc_type !== "verification_photo")
+    .sort((a, b) => {
+      const ai = DOC_ORDER.indexOf(a.doc_type);
+      const bi = DOC_ORDER.indexOf(b.doc_type);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
+
+  const [reviewingDoc,  setReviewingDoc]  = useState(null);
+  const [localReviews,  setLocalReviews]  = useState({});
+
+  useEffect(() => {
+    const init = {};
+    const NON_PHOTO = ["licence_photo", "verification_photo"];
+    const allDocs = app?.documents || [];
+    for (let i = 0; i < allDocs.length; i++) {
+      const doc = allDocs[i];
+      if (doc.is_current && !NON_PHOTO.includes(doc.doc_type) && doc.review_status) {
+        init[doc.id] = { status: doc.review_status, comment: doc.review_comment || "" };
+      }
+    }
+    setLocalReviews(init);
+  }, [app?.documents]);
+
+  return (
+    <>
+      {reviewingDoc && (
+        <SupDocReviewModal
+          title={`Review: ${SUP_DOC_LABELS[reviewingDoc.doc_type] || reviewingDoc.doc_type?.replace(/_/g, " ")}`}
+          subtitle="Supervisor decision — overrides officer"
+          previewUrl={null}
+          officerStatus={reviewingDoc.review_status}
+          officerComment={reviewingDoc.review_comment}
+          currentStatus={localReviews[reviewingDoc.id]?.status || reviewingDoc.review_status || ""}
+          currentComment={localReviews[reviewingDoc.id]?.comment || reviewingDoc.review_comment || ""}
+          appId={appId}
+          docId={reviewingDoc.id}
+          onDone={(s, c) => {
+            setLocalReviews(prev => ({ ...prev, [reviewingDoc.id]: { status: s, comment: c } }));
+            onAppUpdate?.();
+          }}
+          onClose={() => setReviewingDoc(null)}
+        />
+      )}
+      <div className={pStyles.stepContent}>
+        <div className={pStyles.sectionHead}>
+          <FileIcon size={18} stroke="#2563eb" />
+          <h2 className={pStyles.sectionTitle}>Verification &amp; Documents</h2>
+          <span className={pStyles.sectionNote}>{docs.length} supporting doc{docs.length !== 1 ? "s" : ""}</span>
+        </div>
+
+        {/* ── Identity Verification Panel ── */}
+        {(app?.verification_attempts || app?.verification_result || app?.liveness_score != null || app?.face_match_score != null) && (
+          <div style={{ padding: "0 22px 18px", borderBottom: "1px solid #f3f4f6" }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Identity Verification</p>
+            <VerificationPanel app={app} appId={appId} onAppUpdate={onAppUpdate} supervisorName={supervisorName} readOnly={readOnly} />
+          </div>
+        )}
+
+        {/* ── Supporting documents ── */}
+        {docs.length === 0 ? (
+          <div style={{ padding: "50px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, color: "#9ca3af", fontSize: 13 }}>
+            <FileIcon size={36} stroke="#d1d5db" />
+            No supporting documents uploaded
+          </div>
+        ) : (
+          <>
+            <div style={{ padding: "14px 22px 6px" }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em" }}>Supporting Documents</p>
+            </div>
+            <div style={{ padding: "0 22px 18px", display: "flex", flexDirection: "column", gap: 20 }}>
+              {(() => {
+                const baseType = dt => dt?.replace(/_(front|back)$/i, "") ?? dt;
+                const groups = [];
+                const seen = new Map();
+                docs.forEach(doc => {
+                  const key = baseType(doc.doc_type);
+                  if (!seen.has(key)) { seen.set(key, []); groups.push({ key, items: seen.get(key) }); }
+                  seen.get(key).push(doc);
+                });
+                return groups.map(({ key, items }) => (
+                  <div key={key}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
+                      {GROUP_LABELS[key] || key.replace(/_/g, " ")}
+                    </p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+                      {items.map(doc => {
+                        const meta = doc.review_status ? DOC_STATUS_META[doc.review_status] : null;
+                        return (
+                          <div key={doc.id} className={`${pStyles.docCard} ${doc.review_status === "APPROVED" ? pStyles.docCardApproved : doc.review_status === "RESUBMIT_REQUIRED" ? pStyles.docCardResubmit : doc.review_status === "REJECTED" ? pStyles.docCardRejected : ""}`}>
+                            <div className={pStyles.docCardHeader}>
+                              <div>
+                                <p className={pStyles.docCardType}>{SUP_DOC_LABELS[doc.doc_type] || doc.doc_type?.replace(/_/g, " ")}</p>
+                                <p className={pStyles.docCardSub}>{doc.original_filename || "—"}</p>
+                              </div>
+                              {meta && (
+                                <span className={pStyles.docCardBadge} style={{ background: meta.bg, color: meta.color }}>{meta.label}</span>
+                              )}
+                            </div>
+                            <div className={pStyles.docCardBody}>
+                              {doc.review_comment && <p style={{ fontSize: 11, color: "#6b7280", fontStyle: "italic", marginBottom: 8 }}>"{doc.review_comment}"</p>}
+                              <div className={pStyles.docActions}>
+                                <button className={`${pStyles.docBtn} ${pStyles.docBtnPreview}`} onClick={() => onPreview(doc)}>
+                                  <FileIcon size={12} /> View
+                                </button>
+                                {!readOnly && (
+                                  <>
+                                    <button className={`${pStyles.docBtn} ${doc.review_status === "APPROVED" ? pStyles.docBtnApproveActive : pStyles.docBtnApprove}`}
+                                      onClick={() => setReviewingDoc(doc)}>
+                                      <CheckIcon size={11} stroke="currentColor" sw={2.5} /> Approve
+                                    </button>
+                                    <button className={`${pStyles.docBtn} ${doc.review_status === "RESUBMIT_REQUIRED" ? pStyles.docBtnResubmitActive : pStyles.docBtnResubmit}`}
+                                      onClick={() => setReviewingDoc(doc)}>
+                                      <RotateIcon size={11} stroke="currentColor" /> Resubmit
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </>
+        )}
+
+        {/* Activity log — collapsible */}
+        {(app?.events || []).length > 0 && <ActivityLog events={app.events} />}
+      </div>
+    </>
   );
 }
 
@@ -650,7 +1325,7 @@ const CHECKLIST_ITEMS = [
   "Decision is consistent with DLRSJAM policy",
 ];
 
-function StepChecklist({ checklist, setChecklist }) {
+function StepChecklist({ checklist, setChecklist, readOnly }) {
   return (
     <div className={pStyles.stepContent}>
       <div className={pStyles.sectionHead}>
@@ -664,7 +1339,8 @@ function StepChecklist({ checklist, setChecklist }) {
           return (
             <div key={i}
               className={`${pStyles.checklistItem} ${checked ? pStyles.checklistItemChecked : ""}`}
-              onClick={() => setChecklist(prev => ({ ...prev, [i]: !prev[i] }))}>
+              onClick={readOnly ? undefined : () => setChecklist(prev => ({ ...prev, [i]: !prev[i] }))}
+              style={readOnly ? { cursor: "default", opacity: 0.6 } : undefined}>
               <div className={`${pStyles.checkBox} ${checked ? pStyles.checkBoxChecked : ""}`}>
                 {checked && <CheckIcon size={12} stroke="white" sw={2.5} />}
               </div>
@@ -895,8 +1571,12 @@ const EV_LABEL_SUP = {
   REVERIFICATION_REQUESTED:  "Re-verification Requested",
   REVERIFICATION_CANCELLED:  "Re-verification Cancelled",
   MANUAL_REVIEW_CLEARED:     "Manual Review Cleared",
+  VERIFICATION_OVERRIDE:     "Verification Overridden",
+  VERIFICATION_PASSED:       "Verification Passed",
+  VERIFICATION_ATTEMPT_FAILED: "Verification Attempt Failed",
   ITA_CLEARED:               "ITA Clearance Received",
   ITA_REQUEST:               "ITA Request Sent",
+  ITA_REQUESTED:             "ITA Clearance Requested",
   SUPERVISOR_DECISION:       "Supervisor Decision",
   CREATED:                   "Application Created",
   SUBMITTED:                 "Application Submitted",
@@ -905,9 +1585,10 @@ const EV_LABEL_SUP = {
   ACTION_REQUIRED:           "Action Required",
   RESUBMITTED:               "Documents Resubmitted",
   ESCALATED:                 "Escalated to Supervisor",
-  ITA_REQUESTED:             "ITA Clearance Requested",
   APPROVED:                  "Application Approved",
   REJECTED:                  "Application Rejected",
+  DIGITAL_LICENCE_GENERATED: "Digital Licence Generated",
+  WAITING_ON_APPLICANT:      "Waiting on Applicant",
 };
 
 const ACTOR_ROLE_COLOR_SUP = {
@@ -1741,15 +2422,15 @@ export default function SupervisorReviewApplication() {
                 )}
 
                 {currentStep === "applicant" && (
-                  <StepApplicant app={app} applicant={applicant} licence={licence} />
+                  <StepApplicant app={app} appId={app?.id} applicant={applicant} licence={licence} onAppUpdate={load} supervisorName={user?.name} readOnly={officerHasPossession} />
                 )}
 
                 {currentStep === "documents" && (
-                  <StepDocuments app={app} appId={app?.id} onPreview={setPreviewDoc} />
+                  <StepDocuments app={app} appId={app?.id} onPreview={setPreviewDoc} onAppUpdate={load} supervisorName={user?.name} readOnly={officerHasPossession} />
                 )}
 
                 {currentStep === "checklist" && (
-                  <StepChecklist checklist={checklist} setChecklist={setChecklist} />
+                  <StepChecklist checklist={checklist} setChecklist={setChecklist} readOnly={officerHasPossession} />
                 )}
 
                 {currentStep === "decision" && (

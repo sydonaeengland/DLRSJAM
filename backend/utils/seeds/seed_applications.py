@@ -85,6 +85,10 @@ def seed_applications():
         print("   Users not found -- skipping applications seed (re-seed staff first)")
         return
 
+    # keisha is intentionally left unregistered for live demo — skip her historical apps
+    if not keisha:
+        print("   keisha.thompson not registered — skipping her historical seed applications")
+
     DECL = "I hereby declare that all information provided in this application is true, accurate and complete to the best of my knowledge and belief."
 
     # Generate placeholder images
@@ -291,6 +295,7 @@ def seed_applications():
             ],
             "documents": renewal_docs(sandra),
         },
+        *([
         # Keisha — historical RENEWAL 2016 (gave her 2016–2021 licence)
         {
             "user": keisha, "officer": karen,
@@ -329,6 +334,7 @@ def seed_applications():
             ],
             "documents": renewal_docs(keisha),
         },
+        ] if keisha else []),
         # Andre — historical RENEWAL 2021
         {
             "user": andre, "officer": karen,
@@ -460,26 +466,6 @@ def seed_applications():
         # ══════════════════════════════════════════════════════════════════
 
         # Karen's queue (branch 021)
-
-        # 1. Marcus — RENEWAL — SUBMITTED today
-        {
-            "user": marcus, "officer": karen,
-            "transaction_type": "RENEWAL", "status": "SUBMITTED",
-            "pickup_collectorate_code": "021", "fee_amount": 5400.00,
-            "declaration": DECL,
-            "submitted_at": days_ago(0),
-            "payment_reference": "pi_curr_marcus_2026", "payment_confirmed_at": days_ago(0),
-            "verification": verif(marcus, verified_at=days_ago(0, hour=9)),
-            "notifications": [
-                {"recipient": karen, "event_type": "SUBMITTED",
-                 "message": "New renewal application submitted by Marcus Campbell."},
-            ],
-            "events": [
-                {"event_type": "CREATED",   "from_status": None,    "to_status": "DRAFT",     "by": marcus, "comment": "Application created"},
-                {"event_type": "SUBMITTED", "from_status": "DRAFT", "to_status": "SUBMITTED", "by": marcus, "comment": "Payment confirmed. Application submitted."},
-            ],
-            "documents": renewal_docs(marcus, review="PENDING"),
-        },
 
         # 2. Andre — Class C RENEWAL — WAITING_ON_APPLICANT (blurry photo)
         {
@@ -904,33 +890,6 @@ def seed_applications():
                 {"event_type": "FORWARDED",      "from_status": "UNDER_REVIEW","to_status": "PENDING_SUPERVISOR_APPROVAL", "by": tracey, "comment": "Verification scores borderline. Forwarding for supervisor review."},
             ],
             "documents": renewal_docs(sandra),
-        },
-
-        # 18. Marcus — REPLACEMENT — ESCALATED by Pamela (branch 121)
-        #     Pickup is 121 (Mandeville); escalated for suspected document tampering
-        {
-            "user": marcus, "officer": pamela,
-            "transaction_type": "REPLACEMENT", "status": "ESCALATED",
-            "pickup_collectorate_code": "121", "fee_amount": 3000.00,
-            "declaration": DECL,
-            "submitted_at": days_ago(5),
-            "payment_reference": "pi_marcus_esc_2026", "payment_confirmed_at": days_ago(5),
-            "officer_comment": "National ID shows signs of alteration on the date of birth field. Escalating for supervisory review.",
-            "officer_decision_at": days_ago(1),
-            "escalated_to_supervisor_at": days_ago(1),
-            "escalation_reason": "National ID shows signs of alteration on the date of birth field. Possible document tampering.",
-            "verification": verif(marcus, face=0.69, verified_at=days_ago(5, hour=9)),
-            "notifications": [
-                {"recipient": marcus, "event_type": "APPLICATION_ESCALATED",
-                 "message": "Your replacement application has been escalated for senior review."},
-            ],
-            "events": [
-                {"event_type": "CREATED",        "from_status": None,          "to_status": "DRAFT",        "by": marcus, "comment": "Application created"},
-                {"event_type": "SUBMITTED",      "from_status": "DRAFT",       "to_status": "SUBMITTED",    "by": marcus, "comment": "Payment confirmed."},
-                {"event_type": "REVIEW_STARTED", "from_status": "SUBMITTED",   "to_status": "UNDER_REVIEW", "by": pamela, "comment": "Officer started review"},
-                {"event_type": "ESCALATION",     "from_status": "UNDER_REVIEW","to_status": "ESCALATED",    "by": pamela, "comment": "National ID shows signs of alteration on the date of birth field. Possible document tampering."},
-            ],
-            "documents": replacement_docs(marcus, review="APPROVED"),
         },
 
         # 19. Rohan — RENEWAL — REJECTED by Nicole (branch 141)

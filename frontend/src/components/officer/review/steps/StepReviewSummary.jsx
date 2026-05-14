@@ -19,13 +19,30 @@ const ClockIcon   = p => <Ico {...p} d={["M12 22c5.523 0 10-4.477 10-10S17.523 2
 const TX_LABEL = { RENEWAL: "Renewal", REPLACEMENT: "Replacement", AMENDMENT: "Amendment" };
 
 const EVENT_META = {
-  STATUS_CHANGE:            { label: "Status Change",        color: "#2563eb", bg: "#eff6ff" },
-  DOCUMENT_REVIEW:          { label: "Document Review",      color: "#0369a1", bg: "#e0f2fe" },
-  ESCALATION:               { label: "Escalated",            color: "#7c3aed", bg: "#f5f3ff" },
-  REVERIFICATION_REQUESTED: { label: "Re-verification Req.", color: "#d97706", bg: "#fff7ed" },
-  REVERIFICATION_CANCELLED: { label: "Re-verification Cancelled", color: "#6b7280", bg: "#f3f4f6" },
-  MANUAL_REVIEW_CLEARED:    { label: "Manual Review Cleared", color: "#16a34a", bg: "#f0fdf4" },
-  ASSIGNMENT:               { label: "Assigned",             color: "#6b7280", bg: "#f3f4f6" },
+  CREATED:                    { label: "Application Created",        color: "#2563eb", bg: "#eff6ff" },
+  SUBMITTED:                  { label: "Application Submitted",      color: "#2563eb", bg: "#eff6ff" },
+  PAYMENT_CONFIRMED:          { label: "Payment Confirmed",          color: "#16a34a", bg: "#f0fdf4" },
+  REVIEW_STARTED:             { label: "Under Review",               color: "#d97706", bg: "#fff7ed" },
+  STATUS_CHANGE:              { label: "Status Changed",             color: "#2563eb", bg: "#eff6ff" },
+  DOCUMENT_REVIEW:            { label: "Document Reviewed",          color: "#0369a1", bg: "#e0f2fe" },
+  ESCALATION:                 { label: "Case Escalated",             color: "#7c3aed", bg: "#f5f3ff" },
+  ESCALATED:                  { label: "Escalated to Supervisor",    color: "#7c3aed", bg: "#f5f3ff" },
+  REVERIFICATION_REQUESTED:   { label: "Re-verification Requested",  color: "#d97706", bg: "#fff7ed" },
+  REVERIFICATION_CANCELLED:   { label: "Re-verification Cancelled",  color: "#6b7280", bg: "#f3f4f6" },
+  MANUAL_REVIEW_CLEARED:      { label: "Manual Review Cleared",      color: "#16a34a", bg: "#f0fdf4" },
+  VERIFICATION_OVERRIDE:      { label: "Verification Overridden",    color: "#7c3aed", bg: "#f5f3ff" },
+  VERIFICATION_PASSED:        { label: "Verification Passed",        color: "#16a34a", bg: "#f0fdf4" },
+  VERIFICATION_ATTEMPT_FAILED:{ label: "Verification Failed",        color: "#dc2626", bg: "#fef2f2" },
+  ITA_CLEARED:                { label: "ITA Clearance Received",     color: "#0369a1", bg: "#e0f2fe" },
+  ITA_REQUESTED:              { label: "ITA Clearance Requested",    color: "#7e22ce", bg: "#faf5ff" },
+  SUPERVISOR_DECISION:        { label: "Supervisor Decision",        color: "#7c3aed", bg: "#f5f3ff" },
+  ASSIGNMENT:                 { label: "Officer Assigned",           color: "#6b7280", bg: "#f3f4f6" },
+  OFFICER_ASSIGNED:           { label: "Officer Assigned",           color: "#6b7280", bg: "#f3f4f6" },
+  RESUBMITTED:                { label: "Documents Resubmitted",      color: "#4338ca", bg: "#e0e7ff" },
+  ACTION_REQUIRED:            { label: "Action Required",            color: "#dc2626", bg: "#fef2f2" },
+  APPROVED:                   { label: "Application Approved",       color: "#16a34a", bg: "#f0fdf4" },
+  REJECTED:                   { label: "Application Rejected",       color: "#dc2626", bg: "#fef2f2" },
+  DIGITAL_LICENCE_GENERATED:  { label: "Digital Licence Generated",  color: "#16a34a", bg: "#f0fdf4" },
 };
 
 function daysUntilExpiry(expiryDateStr) {
