@@ -147,12 +147,12 @@ export default function StepReviewSummary({
           : <AlertCircle size={18} stroke="#d97706" />}
         <div>
           <p style={{ fontSize: "13px", fontWeight: "700", color: overallReady ? "#15803d" : "#92400e", marginBottom: 2 }}>
-            {overallReady ? "Application is ready for a decision" : "Review is not yet complete"}
+            {overallReady ? "Application is ready for a decision" : "Outstanding items remain"}
           </p>
           <p style={{ fontSize: "12px", color: overallReady ? "#166534" : "#78350f" }}>
             {overallReady
               ? "All documents approved, checks passed, and no outstanding items."
-              : "Resolve outstanding items below before proceeding to the decision step."}
+              : "You may still proceed to escalate or request resubmission."}
           </p>
         </div>
       </div>

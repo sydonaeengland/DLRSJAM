@@ -18,24 +18,26 @@ const ShieldIcon  = p => <Ico {...p} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 
 
 export const NOTIF_META = {
   // Officer-targeted events
-  SUBMITTED:                { label: "New application submitted",       color: "#1d4ed8", bg: "#dbeafe", Icon: InboxIcon   },
-  RESUBMITTED:              { label: "Applicant resubmitted docs",      color: "#854d0e", bg: "#fef9c3", Icon: RotateIcon  },
-  ESCALATION_RECEIVED:      { label: "Application escalated to you",    color: "#be185d", bg: "#fce7f3", Icon: ArrowUpIcon },
-  ITA_CLEARED:              { label: "ITA clearance received",          color: "#7c3aed", bg: "#f3e8ff", Icon: ShieldIcon  },
+  SUBMITTED:                { label: "New application submitted",        color: "#1d4ed8", bg: "#dbeafe", Icon: InboxIcon   },
+  RESUBMITTED:              { label: "Applicant resubmitted docs",       color: "#854d0e", bg: "#fef9c3", Icon: RotateIcon  },
+  ESCALATION_RECEIVED:      { label: "Application escalated to you",     color: "#be185d", bg: "#fce7f3", Icon: ArrowUpIcon },
+  ITA_CLEARED:              { label: "ITA clearance received",           color: "#7c3aed", bg: "#f3e8ff", Icon: ShieldIcon  },
   // Applicant-targeted events
-  APPLICATION_APPROVED:     { label: "Your application was approved",   color: "#15803d", bg: "#dcfce7", Icon: CheckIcon   },
-  APPLICATION_REJECTED:     { label: "Your application was rejected",   color: "#b91c1c", bg: "#fee2e2", Icon: AlertIcon   },
-  RESUBMISSION_REQUESTED:   { label: "Action required on application",  color: "#b91c1c", bg: "#fee2e2", Icon: AlertIcon   },
+  APPLICATION_APPROVED:     { label: "Your application was approved",    color: "#15803d", bg: "#dcfce7", Icon: CheckIcon   },
+  APPLICATION_REJECTED:     { label: "Your application was rejected",    color: "#b91c1c", bg: "#fee2e2", Icon: AlertIcon   },
+  RESUBMISSION_REQUESTED:   { label: "Action required on application",   color: "#b91c1c", bg: "#fee2e2", Icon: AlertIcon   },
   APPLICATION_ESCALATED:    { label: "Application escalated for review", color: "#be185d", bg: "#fce7f3", Icon: ArrowUpIcon },
+  REVERIFICATION_REQUESTED: { label: "Re-verification required",         color: "#b91c1c", bg: "#fee2e2", Icon: AlertIcon   },
 };
 
 export function timeAgo(iso) {
   if (!iso) return "";
-  const s = Math.floor((Date.now() - new Date(iso)) / 1000);
+  const d = new Date(iso);
+  const s = Math.floor((Date.now() - d) / 1000);
   if (s < 60)    return "just now";
   if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return new Date(iso).toLocaleDateString("en-JM", { day: "numeric", month: "short" });
+  if (s < 86400) return d.toLocaleTimeString("en-JM", { hour: "2-digit", minute: "2-digit", timeZone: "America/Jamaica" });
+  return d.toLocaleDateString("en-JM", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Jamaica" });
 }
 
 export default function NotifList({ notifications, seenNotifs, setSeenNotifs, onNavigate, onMarkRead }) {

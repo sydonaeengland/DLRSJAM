@@ -853,6 +853,7 @@ export default function ViewApplication() {
 
                 {isAR && !submitted && (() => {
                   const resubmitDocs = (app.documents || []).filter(d => d.review_status === "RESUBMIT_REQUIRED");
+                  const approvedDocs = (app.documents || []).filter(d => d.review_status === "APPROVED");
                   const readyCount   = resubmitDocs.filter(d => docUploads[d.doc_type]).length;
                   const totalCount   = resubmitDocs.length;
                   const allProvided  = totalCount > 0 && readyCount === totalCount;
@@ -877,6 +878,24 @@ export default function ViewApplication() {
                       </div>
 
                       <div style={{ padding: "16px 18px" }}>
+                        {approvedDocs.length > 0 && (
+                          <div style={{ marginBottom: "14px" }}>
+                            <p style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>Already Approved</p>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                              {approvedDocs.map(doc => (
+                                <div key={doc.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "10px 13px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+                                    <div style={{ width: "26px", height: "26px", borderRadius: "6px", background: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round"><path d="M5 12l5 5L20 7"/></svg>
+                                    </div>
+                                    <p style={{ fontSize: "13px", fontWeight: "600", color: "#166534", margin: 0 }}>{DOC_TYPE_LABELS[doc.doc_type] || doc.doc_type}</p>
+                                  </div>
+                                  <span style={{ fontSize: "11px", fontWeight: "700", padding: "3px 10px", borderRadius: "999px", background: "#dcfce7", color: "#15803d", flexShrink: 0 }}>Approved</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         {resubmitDocs.length === 0 ? (
                           <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "10px", padding: "12px 14px", display: "flex", gap: "10px" }}>
                             <AlertIcon size={15} stroke="#d97706" />

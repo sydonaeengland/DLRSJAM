@@ -11,7 +11,9 @@ function fmt(iso) {
 function fmtTime(iso) {
   if (!iso) return "—";
   const s = iso.endsWith("Z") ? iso : iso + "Z";
-  return new Date(s).toLocaleString("en-JM", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "America/Jamaica" });
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-JM", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "America/Jamaica" });
 }
 
 const TX_LABEL = { RENEWAL: "Renewal", REPLACEMENT: "Replacement", AMENDMENT: "Amendment" };
@@ -301,13 +303,15 @@ function PhotoDecisionModal({ photoBlobUrl, onSubmit, onClose, onRemove, existin
   );
 }
 
-export default function StepSummary({ app, applicant, licence, onDocReview, photoFlag, onTogglePhotoFlag }) {
+export default function StepSummary({ app, applicant, licence, onDocReview, photoFlag, onTogglePhotoFlag, isResubmission }) {
   const photoDoc = (app.documents || []).find(d => d.doc_type === "licence_photo" && d.is_current);
   const [photoBlobUrl,  setPhotoBlobUrl]  = useState(null);
   const [expanded,      setExpanded]      = useState(false);
-  const [photoDecision, setPhotoDecision] = useState(null);
-  const [decidedAt,     setDecidedAt]     = useState(null);
+  const [photoDecision, setPhotoDecision] = useState(() => photoDoc?.review_status && photoDoc.review_status !== "PENDING" ? photoDoc.review_status : null);
+  const [decidedAt,     setDecidedAt]     = useState(() => photoDoc?.reviewed_at || null);
   const [showModal,     setShowModal]     = useState(false);
+
+  const photoCarriedOver = isResubmission && (photoDoc?.version ?? 1) === 1 && photoDecision === "APPROVED";
 
   useEffect(() => {
     if (!photoDoc) return;
@@ -386,8 +390,8 @@ export default function StepSummary({ app, applicant, licence, onDocReview, phot
               )}
 
               <button onClick={() => setShowModal(true)}
-                style={{ width: "100%", padding: "6px 0", borderRadius: 7, border: "1.5px solid #cbd5e1", background: "white", color: "#374151", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                {photoDecision ? "Change / Remove Decision" : "Review Photo"}
+                style={{ width: "100%", padding: "6px 0", borderRadius: 7, border: `1.5px solid ${photoCarriedOver ? "#86efac" : "#cbd5e1"}`, background: photoCarriedOver ? "#f0fdf4" : "white", color: photoCarriedOver ? "#15803d" : "#374151", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                {photoCarriedOver ? "Approved ✓ (click to change)" : photoDecision ? "Change / Remove Decision" : "Review Photo"}
               </button>
             </>
           ) : (
@@ -436,7 +440,9 @@ export default function StepSummary({ app, applicant, licence, onDocReview, phot
                     {applicant?.firstname} {applicant?.lastname}
                   </p>
                 )}
-                <p style={{ fontSize: 11, color: "#9ca3af" }}>Signed {fmtTime(app.declaration_signed_at || app.submitted_at)}</p>
+                <p style={{ fontSize: 11, color: "#9ca3af" }}>
+                  {(app.declaration_signed_at || app.submitted_at) ? `Signed ${fmtTime(app.declaration_signed_at || app.submitted_at)}` : "Declaration Signed"}
+                </p>
               </div>
               <div style={{ background: "#dcfce7", borderRadius: 6, padding: "8px 12px" }}>
                 <p style={{ fontSize: 11, color: "#15803d", lineHeight: 1.5 }}>

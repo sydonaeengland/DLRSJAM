@@ -324,7 +324,25 @@ export default function OfficerReviewApplication() {
           }
           // version > 1 = resubmitted doc → no prior review carried forward
         }
+
+        // Re-key flags onto new doc IDs (unchanged docs keep same ID so this is a
+        // passthrough), and drop any flags on resubmitted docs — they're a fresh upload.
+        const savedFlags = priorProgress.docFlags ?? {};
+        const typeToFlag = {};
+        for (const [, flag] of Object.entries(savedFlags)) {
+          if (flag?.docType) typeToFlag[flag.docType] = flag;
+        }
+        const remappedFlags = {};
+        for (const [docType, flag] of Object.entries(typeToFlag)) {
+          const newId = typeToNewId[docType];
+          if (newId && (typeToVersion[docType] ?? 1) === 1) {
+            remappedFlags[newId] = flag;
+          }
+          // resubmitted doc — drop the stale flag
+        }
+
         setDocReviews(remapped);
+        setDocFlags(remappedFlags);
         setChecklist({});
         setStep(2); // jump straight to Documents step
       } else {
@@ -426,7 +444,9 @@ export default function OfficerReviewApplication() {
   const changeDone       = !hasChanges || addressChangeStatus === "approved";
   const commentOk        = decision && (decision === "approve" ? true : comment.trim().length > 0);
   const canSubmit        = commentOk && decisionConfirmed;
-  const approveEnabled   = allDocsApproved && changeDone;
+  const verificationOk   = (app?.verification_passed && !app?.needs_manual_review && !app?.reverification_requested) || verificationOverridden;
+  const photoOk          = !photoDoc || (docReviews[photoDoc.id]?.status === "APPROVED");
+  const approveEnabled   = allDocsApproved && changeDone && verificationOk && photoOk && allChecked && !photoRejected;
 
   const currentStepId = STEPS[step]?.id;
 
@@ -651,13 +671,13 @@ export default function OfficerReviewApplication() {
 
             <div className={styles.reviewMain}>
               <div className={styles.content} ref={contentRef}>
-                {currentStepId === "summary"   && <StepSummary app={app} applicant={applicant} licence={licence} onDocReview={handleDocReview} photoFlag={(() => { const pd = docs.find(d => d.doc_type === "licence_photo"); return pd ? docFlags[pd.id] : null; })()} onTogglePhotoFlag={flagData => { const pd = docs.find(d => d.doc_type === "licence_photo"); if (pd) handleToggleFlag(pd.id, flagData ? { ...flagData, docType: "licence_photo" } : null); }} />}
+                {currentStepId === "summary"   && <StepSummary app={app} applicant={applicant} licence={licence} onDocReview={handleDocReview} photoFlag={(() => { const pd = docs.find(d => d.doc_type === "licence_photo"); return pd ? docFlags[pd.id] : null; })()} onTogglePhotoFlag={flagData => { const pd = docs.find(d => d.doc_type === "licence_photo"); if (pd) handleToggleFlag(pd.id, flagData ? { ...flagData, docType: "licence_photo" } : null); }} isResubmission={isResubmission} />}
                 {currentStepId === "ita"       && <StepITA app={app} applicant={applicant} licence={licence} officer={user} onITAComplete={(cleared, ref) => { setItaCleared(cleared); setItaReference(ref); }} />}
                 {currentStepId === "changes"   && <StepRequestedChanges app={app} applicant={applicant} docReviews={docReviews} onDocReview={handleDocReview} onPreview={setPreviewDoc} addressChangeStatus={addressChangeStatus} setAddressChangeStatus={setAddressChangeStatus} docFlags={docFlags} onToggleFlag={handleToggleFlag} />}
                 {currentStepId === "documents" && <StepDocuments app={app} licence={licence} docReviews={docReviews} onDocReview={handleDocReview} onPreview={setPreviewDoc} onRemoveDocReview={docId => setDocReviews(prev => { const n = { ...prev }; delete n[docId]; return n; })} onReverifyRequested={fetchApp} onApplicationRejected={() => { setVerificationOverridden(true); fetchApp(); }} onCancelOverride={() => setVerificationOverridden(false)} docFlags={docFlags} onToggleFlag={handleToggleFlag} verificationFlag={verificationFlag} onToggleVerificationFlag={f => setVerificationFlag(f)} verificationOverridden={verificationOverridden} isResubmission={isResubmission} />}
                 {currentStepId === "checklist" && <StepChecklist app={app} licence={licence} checklist={checklist} setChecklist={setChecklist} priorStepCount={STEPS.findIndex(s => s.id === "checklist")} />}
                 {currentStepId === "review"    && <StepReviewSummary app={app} applicant={applicant} licence={licence} docReviews={docReviews} systemFlags={systemFlags} addressChangeStatus={addressChangeStatus} verificationFlag={verificationFlag} verificationOverridden={verificationOverridden} events={app.events || []} />}
-                {currentStepId === "decision"  && <StepDecision decision={decision} setDecision={setDecision} comment={comment} setComment={setComment} approveEnabled={approveEnabled} docsApproved={allDocsApproved} docsCount={nonPhotoDocs.length} approvedCount={nonPhotoDocs.filter(d => docReviews[d.id]?.status === "APPROVED").length} photoRejected={photoRejected} officerSignature={officerSignature} setOfficerSignature={setOfficerSignature} decisionConfirmed={decisionConfirmed} setDecisionConfirmed={setDecisionConfirmed} flaggedDocs={[...Object.values(docFlags).map(f => f.docType), ...(verificationFlag ? ["Verification Photo"] : [])].filter(Boolean)} hasResubmit={hasResubmit} resubmitDocs={resubmitDocs} itaCleared={resolvedItaCleared} itaReference={resolvedItaReference} />}
+                {currentStepId === "decision"  && <StepDecision decision={decision} setDecision={setDecision} comment={comment} setComment={setComment} approveEnabled={approveEnabled} docsApproved={allDocsApproved} docsCount={nonPhotoDocs.length} approvedCount={nonPhotoDocs.filter(d => docReviews[d.id]?.status === "APPROVED").length} photoRejected={photoRejected} photoApproved={photoOk} verificationOk={verificationOk} checklistComplete={allChecked} officerSignature={officerSignature} setOfficerSignature={setOfficerSignature} decisionConfirmed={decisionConfirmed} setDecisionConfirmed={setDecisionConfirmed} flaggedDocs={[...Object.values(docFlags).map(f => f.docType), ...(verificationFlag ? ["Verification Photo"] : [])].filter(Boolean)} hasResubmit={hasResubmit} resubmitDocs={resubmitDocs} itaCleared={resolvedItaCleared} itaReference={resolvedItaReference} />}
               </div>
 
               <div className={styles.stepNav}>

@@ -17,8 +17,8 @@ function getToken() {
 }
 
 function clearAuth() {
-  ["token_applicant","user_applicant"].forEach(k => localStorage.removeItem(k))
-  ["token_officer","user_officer","token_supervisor","user_supervisor"].forEach(k => sessionStorage.removeItem(k))
+  ["token_applicant","user_applicant"].forEach(k => localStorage.removeItem(k));
+  ["token_officer","user_officer","token_supervisor","user_supervisor"].forEach(k => sessionStorage.removeItem(k));
   localStorage.removeItem("token");  localStorage.removeItem("user")
   sessionStorage.removeItem("token"); sessionStorage.removeItem("user")
 }

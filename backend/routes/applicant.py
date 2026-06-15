@@ -401,6 +401,10 @@ def verify_identity(user, app_id):
     data = request.get_json(force=True) or {}
     passed              = data.get("passed", False)
 
+    # Reset the counter when an officer/supervisor has explicitly requested a new round
+    if app.reverification_requested:
+        app.verification_attempts = 0
+
     if (app.verification_attempts or 0) >= 3 and not app.verification_passed and not passed:
         return jsonify({
             "error": "Maximum verification attempts reached."

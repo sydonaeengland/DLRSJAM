@@ -182,7 +182,8 @@
 .docBtnPreview:hover { background: #e2e8f0; }
 .docBtnApprove  { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
 .docBtnApprove:hover  { background: #bbf7d0; }
-.docBtnApproveActive  { background: #16a34a; color: white; border: 1px solid #16a34a; }
+.docBtnApproveActive  { background: #f0fdf4; color: #15803d; border: 1px solid #86efac; }
+.docBtnApproveActive:hover { background: #dcfce7; }
 .docBtnResubmit { background: #fef9c3; color: #854d0e; border: 1px solid #fcd34d; }
 .docBtnResubmit:hover { background: #fef08a; }
 .docBtnResubmitActive { background: #d97706; color: white; border: 1px solid #d97706; }

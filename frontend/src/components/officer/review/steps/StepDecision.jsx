@@ -123,7 +123,7 @@ function SignaturePad({ onSave, existingSig, onUseExisting }) {
   );
 }
 
-export default function StepDecision({ decision, setDecision, comment, setComment, approveEnabled, docsCount, approvedCount, photoRejected, officerSignature, setOfficerSignature, setDecisionConfirmed, flaggedDocs, hasResubmit, resubmitDocs, itaCleared, itaReference }) {
+export default function StepDecision({ decision, setDecision, comment, setComment, approveEnabled, docsCount, approvedCount, docsApproved, photoRejected, photoApproved, verificationOk, checklistComplete, officerSignature, setOfficerSignature, setDecisionConfirmed, flaggedDocs, hasResubmit, resubmitDocs, itaCleared, itaReference }) {
   const selected      = DECISIONS.find(d => d.id === decision);
   const [showSigPad,  setShowSigPad]  = useState(false);
   const [loadingSig,  setLoadingSig]  = useState(true);
@@ -236,11 +236,13 @@ export default function StepDecision({ decision, setDecision, comment, setCommen
           <AlertIcon size={16} stroke="#dc2626" />
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, color: "#991b1b", marginBottom: 3 }}>Approve is not available</p>
-            <p style={{ fontSize: 12, color: "#b91c1c" }}>
-              {photoRejected
-                ? "The licence photo has been rejected. The applicant must resubmit a new photo before this application can be approved."
-                : `${approvedCount}/${docsCount} documents approved. All documents must be approved before you can approve this application.`}
-            </p>
+            <ul style={{ fontSize: 12, color: "#b91c1c", margin: 0, paddingLeft: 16, lineHeight: 1.8 }}>
+              {photoRejected && <li>Licence photo has been rejected — applicant must resubmit.</li>}
+              {!photoApproved && !photoRejected && <li>Licence photo has not been reviewed yet.</li>}
+              {!docsApproved && <li>{approvedCount}/{docsCount} documents approved — all must be approved.</li>}
+              {!verificationOk && <li>Identity verification has not passed or is flagged.</li>}
+              {!checklistComplete && <li>Checklist is not fully completed.</li>}
+            </ul>
           </div>
         </div>
       )}

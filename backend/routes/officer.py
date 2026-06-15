@@ -543,15 +543,23 @@ def request_reverification(user, app_id):
     if not app:
         return jsonify({"error": "Application not found"}), 404
 
+    prev_status = app.status
     app.reverification_requested = True
     app.needs_manual_review = True
+    app.status = "ACTION_REQUIRED"
 
     db.session.add(ApplicationEvent(
         application_fk=app.id,
         triggered_by_user_id=user.id,
         event_type="REVERIFICATION_REQUESTED",
+        from_status=prev_status,
+        to_status="ACTION_REQUIRED",
         comment="Officer requested the applicant to redo identity verification.",
     ))
+    _notify(
+        app.user_id_fk, app, "REVERIFICATION_REQUESTED",
+        f"Action required on application {app.application_number}: please redo your identity verification.",
+    )
     db.session.commit()
     return jsonify({"status": "ok"}), 200
 

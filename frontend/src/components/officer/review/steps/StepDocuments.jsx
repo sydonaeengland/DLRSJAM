@@ -1256,11 +1256,12 @@ export default function StepDocuments({ app, licence, docReviews, onDocReview, o
                   )}
                   <div style={{ display: "grid", gridTemplateColumns: items.length > 1 ? `repeat(${Math.min(items.length, 2)}, 1fr)` : "1fr 1fr", gap: 16 }}>
                     {items.map(doc => {
-                      const review       = docReviews[doc.id];
-                      const meta         = review ? REVIEW_META[review.status] : null;
-                      const flagged      = (docFlags || {})[doc.id];
-                      const isNewUpload  = isResubmission && doc.version > 1;
-                      const resubReason  = isNewUpload ? (doc.prev_review_comment || null) : null;
+                      const review          = docReviews[doc.id];
+                      const meta            = review ? REVIEW_META[review.status] : null;
+                      const flagged         = (docFlags || {})[doc.id];
+                      const isNewUpload     = isResubmission && doc.version > 1;
+                      const isCarriedOver   = isResubmission && !isNewUpload && review?.status === "APPROVED";
+                      const resubReason     = isNewUpload ? (doc.prev_review_comment || null) : null;
 
                       return (
                         <div key={doc.id} className={`${pStyles.docCard} ${meta?.cardClass || ""}`}
@@ -1339,12 +1340,27 @@ export default function StepDocuments({ app, licence, docReviews, onDocReview, o
                                 )}
                               </div>
                               <div className={pStyles.docActionsRow}>
-                                <button className={`${pStyles.docBtn} ${review?.status === "APPROVED" ? pStyles.docBtnApproveActive : pStyles.docBtnApprove}`} onClick={() => setReviewingDoc({ doc, mode: "approve" })}>
-                                  <CheckIcon size={11} stroke="currentColor" sw={2.5} /> Approve
-                                </button>
-                                <button className={`${pStyles.docBtn} ${review?.status === "RESUBMIT_REQUIRED" ? pStyles.docBtnResubmitActive : pStyles.docBtnResubmit}`} onClick={() => setReviewingDoc({ doc, mode: "resubmit" })}>
-                                  <RotateIcon size={11} stroke="currentColor" /> Resubmit
-                                </button>
+                                {isCarriedOver ? (
+                                  <>
+                                    <button className={`${pStyles.docBtn} ${pStyles.docBtnApproveActive}`} onClick={() => setReviewingDoc({ doc, mode: "approve" })} title="Previously approved — click to change">
+                                      <CheckIcon size={11} stroke="currentColor" sw={2.5} /> Approved ✓
+                                    </button>
+                                    <button className={`${pStyles.docBtn} ${pStyles.docBtnResubmit}`} onClick={() => setReviewingDoc({ doc, mode: "resubmit" })}>
+                                      <RotateIcon size={11} stroke="currentColor" /> Resubmit
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    {review?.status !== "RESUBMIT_REQUIRED" && (
+                                      <button className={`${pStyles.docBtn} ${review?.status === "APPROVED" ? pStyles.docBtnApproveActive : pStyles.docBtnApprove}`} onClick={() => setReviewingDoc({ doc, mode: "approve" })} title={review?.status === "APPROVED" ? "Already approved — click to edit" : undefined}>
+                                        <CheckIcon size={11} stroke="currentColor" sw={2.5} /> {review?.status === "APPROVED" ? "Approved ✓" : "Approve"}
+                                      </button>
+                                    )}
+                                    <button className={`${pStyles.docBtn} ${review?.status === "RESUBMIT_REQUIRED" ? pStyles.docBtnResubmitActive : pStyles.docBtnResubmit}`} onClick={() => setReviewingDoc({ doc, mode: "resubmit" })}>
+                                      <RotateIcon size={11} stroke="currentColor" /> {review?.status === "RESUBMIT_REQUIRED" ? "Resubmit ✓" : "Resubmit"}
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
